@@ -1,0 +1,23 @@
+experiment:
+    debug_mode: True
+    device: 'cpu'
+    seed: 0
+    agent_name: 'rsmpc'
+    n_epochs: 100
+    n_cycles: 1
+    n_rollouts: 1
+    #n_train_batches: 200
+env:
+    id: 'MountainCarContinuous-v0'
+    max_episode_steps: 500
+    end_on_done: True
+agent:
+    buffer_size: 1000000
+    lr_dynamics: 0.001
+    batch_size: 100
+    horizon: 200
+    n_samples: 10
+test:
+    visualize: True
+    n_episodes: 10
+    gif: True

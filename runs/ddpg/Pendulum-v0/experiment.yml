@@ -1,0 +1,26 @@
+experiment:
+    debug_mode: True
+    device: 'cpu'
+    seed: 0
+    agent_name: 'ddpg'
+    n_epochs: 100
+    n_cycles: 1
+    n_rollouts: 1
+env:
+    id: 'Pendulum-v0'
+    max_episode_steps: 200
+agent:
+    buffer_size: 1000000
+    lr_actor: 0.0001
+    lr_critic: 0.001
+    noise_eps: 0.0
+    noise_eps_min: 0.0
+    noise_eps_decay: 0.0
+    batch_size: 128
+    gamma: 0.99
+    polyak: 0.001
+    random_exploration: 0.1
+test:
+    visualize: True
+    n_episodes: 10
+    gif: True

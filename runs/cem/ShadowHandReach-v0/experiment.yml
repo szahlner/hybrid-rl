@@ -1,0 +1,29 @@
+experiment:
+    debug_mode: True
+    device: 'cpu'
+    seed: 0
+    agent_name: 'cem'
+    n_epochs: 50
+    n_cycles: 50
+    n_rollouts: 2
+    n_train_batches: 40
+env:
+    id: 'ShadowHandReach-v0'
+    max_episode_steps: 50
+agent:
+    buffer_size: 1000000
+    lr_dynamics: 0.001
+    batch_size: 256
+    horizon: 5
+    max_iter: 3
+    population_size: 100
+    n_elite: 25
+    alpha: 0.0
+    init_mean: 0.0
+    init_variance: 1.0
+    epsilon: 0.01
+    sampler: 'truncated_normal'
+test:
+    visualize: True
+    n_episodes: 10
+    gif: True

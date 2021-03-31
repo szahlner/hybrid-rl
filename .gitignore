@@ -127,3 +127,38 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+##########################
+
+# IDE settings 
+.idea
+
+# Files
+Leap.py
+*.zip
+*.csv
+*.svg
+
+# Compiled source
+*.dll
+*.o
+*.so
+*.pyc
+#*.pyd
+*.egg-info
+*.pkl
+__pycache__/
+
+# Libraries 
+*.lib
+
+# Temporary files
+*~
+
+# Python virtualenv 
+venv
+
+runs/**/*.npz
+runs/**/*.pt
+runs/**/*.gif
+runs/**/*.png

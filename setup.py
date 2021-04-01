@@ -12,7 +12,6 @@ setup(name='hybridrl',
                         'dotmap',
                         'schema',
                         'pandas',
-                        'tensorboard',
                         'imageio',
                         'termcolor',
                         'colorama']

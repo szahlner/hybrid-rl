@@ -99,16 +99,6 @@ class RSMPC:
 
         self.optimizer = RSMPCOptimizer(agent_params, env_params, self.reward_fn, self.dynamics)
 
-    # TODO: delete
-    def get_action(self, obs):
-        if len(self.buffer) < self.agent_params.batch_size and self.is_training:
-            action = self._get_random_actions(1)
-        else:
-            action = self._mpc(obs)
-        action = np.clip(action, -1, 1)
-
-        return action
-
     def train(self):
         total_steps = 0
         update_steps = 0
@@ -127,9 +117,6 @@ class RSMPC:
 
                     for _ in range(self.env_params.max_episode_steps):
                         action = self.optimizer(obs)
-
-                        # TODO: delete
-                        #action = self.get_action(obs)[0]
 
                         obs_next, reward, done, info = self.env.step(action)
                         self.buffer.add(obs, action, reward, done, obs_next)
@@ -195,37 +182,6 @@ class RSMPC:
 
         return dynamics_loss.item()
 
-    # TODO: delete
-    def _get_random_actions(self, n_samples):
-        return np.random.uniform(-1, 1, size=(n_samples, self.env_params.action_dim))
-
-    # TODO: delete
-    def _mpc(self, obs):
-        init_actions = self._get_random_actions(self.agent_params.n_samples)
-        obs = np.tile(obs, (self.agent_params.n_samples, 1))
-        total_rewards = np.zeros(self.agent_params.n_samples)
-
-        for n in range(self.agent_params.horizon):
-            if n == 0:
-                actions = init_actions
-            else:
-                actions = self._get_random_actions(self.agent_params.n_samples)
-
-            obs = torch.tensor(obs, dtype=torch.float32)
-            actions = torch.tensor(actions, dtype=torch.float32)
-            obs_next = self.dynamics(obs, actions).detach()
-
-            obs = obs.detach().cpu().numpy()
-            obs_next = obs_next.detach().cpu().numpy()
-            actions = actions.detach().cpu().numpy()
-            rewards = self.reward_fn(obs, actions, obs_next)
-            total_rewards += rewards
-
-            obs = obs_next
-
-        idx_best = total_rewards.argmax()
-        return np.array([init_actions[idx_best]])
-
     def _save(self):
         torch.save(self.dynamics.state_dict(), '{}/dynamics.pt'.format(self.experiment_params.log_dir))
         self.logger.save()
@@ -258,9 +214,6 @@ class RSMPC:
 
                 with torch.no_grad():
                     action = self.optimizer(obs)
-
-                    # TODO: delete
-                    #action = self.get_action(obs)[0]
                 obs, reward, done, _ = self.env.step(action)
 
                 episode_reward += reward

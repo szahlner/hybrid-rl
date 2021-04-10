@@ -46,8 +46,8 @@ class DDPG:
         self.critic_target = DDPG_CRITIC_MODELS[env_params.id](env_params.obs_dim, env_params.action_dim)
 
         # hard update
-        self.actor_target.load_state_dict(self.actor_target.state_dict())
-        self.critic_target.load_state_dict(self.critic_target.state_dict())
+        self.actor_target.load_state_dict(self.actor.state_dict())
+        self.critic_target.load_state_dict(self.critic.state_dict())
 
         # create optimizer
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=agent_params.lr_actor)
@@ -157,8 +157,9 @@ class DDPG:
             action_target = self.actor_target(obs_next)
             target_q = self.critic_target(obs_next, action_target).detach()
             #q_expected = reward[:, None] + done[:, None] * self.agent_params.gamma * target_q
-            q_expected = reward + done * self.agent_params.gamma * target_q
-        q_predicted = self.critic.forward(obs, action)
+            #q_expected = reward + done * self.agent_params.gamma * target_q
+            q_expected = reward + self.agent_params.gamma * target_q
+        q_predicted = self.critic(obs, action)
 
         # critic gradient
         critic_criterion = nn.MSELoss()
@@ -169,7 +170,7 @@ class DDPG:
         self.critic_optimizer.step()
 
         # actor gradient
-        action_predicted = self.actor.forward(obs)
+        action_predicted = self.actor(obs)
         actor_loss = (-self.critic.forward(obs, action_predicted)).mean()
         self.actor_optimizer.zero_grad()
         actor_loss.backward()

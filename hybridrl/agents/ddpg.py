@@ -144,13 +144,13 @@ class DDPG:
         self._save()
 
     def _learn(self):
-        obs, action, reward, done, obs_next = self.buffer.sample_batch(self.agent_params.batch_size)
+        obs, action, reward, _, obs_next = self.buffer.sample_batch(self.agent_params.batch_size)
 
-        done = (done == False) * 1
+        #done = (done == False) * 1
         obs = torch.tensor(obs, dtype=torch.float32)
         action = torch.tensor(action, dtype=torch.float32)
         reward = torch.tensor(np.expand_dims(reward, axis=1), dtype=torch.float32)
-        done = torch.tensor(np.expand_dims(done, axis=1), dtype=torch.float32)
+        #done = torch.tensor(np.expand_dims(done, axis=1), dtype=torch.float32)
         obs_next = torch.tensor(obs_next, dtype=torch.float32)
 
         with torch.no_grad():

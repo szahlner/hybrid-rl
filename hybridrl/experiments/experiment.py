@@ -82,6 +82,7 @@ class Experiment:
         env_params.obs_dim = env.observation_space.shape[0]
         env_params.action_dim = env.action_space.shape[0]
         env_params.action_max = env.action_space.high[0]
+        env_params.action_min = env.action_space.low[0]
 
         # set seed
         seed = experiment_params.seed + MPI.COMM_WORLD.Get_rank()

@@ -91,8 +91,9 @@ class RSMPC:
         # create optimizer
         self.dynamics_optimizer = torch.optim.Adam(self.dynamics.parameters(), lr=agent_params.lr_dynamics)
 
-        # create replay buffer
+        # create replay buffers
         self.buffer = ReplayBuffer(agent_params.buffer_size, experiment_params.seed)
+        self.buffer_test = ReplayBuffer(agent_params.buffer_size, experiment_params.seed)
 
         # training / evaluation
         self.is_training = True
@@ -100,29 +101,40 @@ class RSMPC:
         self.optimizer = RSMPCOptimizer(agent_params, env_params, self.reward_fn, self.dynamics)
 
     def train(self):
-        total_steps = 0
-        update_steps = 0
+        total_steps, update_steps = 0, 0
+        all_rewards, all_successes = [], []
 
-        all_rewards = []
         for epoch in range(self.experiment_params.n_epochs):
             rollout_steps = 0
+            cycle_dynamics_loss, cycle_dynamics_test_loss = 0, 0
 
             for cycle in range(self.experiment_params.n_cycles):
-                episode_dynamic_loss = 0
+                rollout_dynamics_loss, rollout_dynamics_test_loss = 0, 0
 
                 for rollout in range(self.experiment_params.n_rollouts):
                     obs = self.env.reset()
 
-                    rollout_reward = 0
+                    rollout_reward, rollout_success = 0, 0
 
                     for _ in range(self.env_params.max_episode_steps):
                         action = self.optimizer(obs)
 
                         obs_next, reward, done, info = self.env.step(action)
-                        self.buffer.add(obs, action, reward, done, obs_next)
+
+                        if np.random.uniform() < 0.1:
+                            self.buffer_test.add(obs, action, reward, done, obs_next)
+                        else:
+                            self.buffer.add(obs, action, reward, done, obs_next)
+
                         obs = obs_next
 
                         rollout_reward += reward
+
+                        try:
+                            rollout_success += float(info['is_success'])
+                        except KeyError:
+                            rollout_success += 0
+
                         total_steps += 1
                         rollout_steps += 1
 
@@ -130,25 +142,30 @@ class RSMPC:
                             break
 
                     all_rewards.append(rollout_reward)
+                    all_successes.append(rollout_success / self.env_params.max_episode_steps)
 
                 if len(self.buffer) > self.agent_params.batch_size:
                     n_batches = rollout_steps if self.experiment_params.n_train_batches is None \
                         else self.experiment_params.n_train_batches
                     for _ in range(n_batches):
-                        dynamic_loss = self._learn()
-                        episode_dynamic_loss += dynamic_loss
+                        dynamic_loss, dynamics_test_loss = self._learn()
+                        rollout_dynamics_loss += dynamic_loss
+                        rollout_dynamics_test_loss += dynamics_test_loss
 
                         update_steps += 1
 
                     self.optimizer.set_dynamics(self.dynamics.state_dict())
 
-            avg_reward = float(np.mean(all_rewards[-100:]))
+                cycle_dynamics_loss += rollout_dynamics_loss
+                cycle_dynamics_test_loss += rollout_dynamics_test_loss
 
-            # TODO: make printer
-            # tensorboard
+            avg_reward = float(np.mean(all_rewards[-100:]))
+            avg_success = float(np.mean(all_successes[-100:]))
+
             if MPI.COMM_WORLD.Get_rank() == 0:
-                # test reward = rollout reward, no need to log
-                avg_test_reward = float(np.mean(all_rewards[-self.test_params.n_episodes:]))
+                self.is_training = False
+                avg_test_reward, avg_test_success = self._test()
+                self.is_training = True
 
                 data = {'time_steps': total_steps,
                         'update_steps': update_steps,
@@ -157,8 +174,15 @@ class RSMPC:
                         'rollouts': rollout + 1,
                         'rollout_steps': rollout_steps,
                         'current_reward': all_rewards[-1],
+                        'current_success': all_successes[-1],
                         'avg_reward': avg_reward,
-                        'avg_test_reward': avg_test_reward}
+                        'avg_success': avg_success,
+                        'avg_test_reward': avg_test_reward,
+                        'avg_test_success': avg_test_success,
+                        'cycle_dynamics_loss': cycle_dynamics_loss,
+                        'cycle_dynamics_test_loss': cycle_dynamics_test_loss,
+                        'rollout_dynamics_loss': rollout_dynamics_loss,
+                        'rollout_dynamics_test_loss': rollout_dynamics_test_loss}
                 self.logger.add(data)
 
         self._save()
@@ -180,7 +204,19 @@ class RSMPC:
         sync_grads(self.dynamics)
         self.dynamics_optimizer.step()
 
-        return dynamics_loss.item()
+        # dynamics test
+        obs, actions, _, _, obs_next = self.buffer_test.sample_batch(int(0.1 * self.agent_params.batch_size))
+
+        obs = torch.tensor(obs, dtype=torch.float32)
+        actions = torch.tensor(actions, dtype=torch.float32)
+        obs_next = torch.tensor(obs_next, dtype=torch.float32)
+
+        obs_predicted = self.dynamics(obs, actions)
+
+        dynamics_test_criterion = nn.MSELoss()
+        dynamics_test_loss = dynamics_test_criterion(obs_predicted, obs_next)
+
+        return dynamics_loss.item(), dynamics_test_loss.item()
 
     def _save(self):
         torch.save(self.dynamics.state_dict(), '{}/dynamics.pt'.format(self.experiment_params.log_dir))
@@ -197,13 +233,12 @@ class RSMPC:
         self._test()
 
     def _test(self):
-        # TODO: make printer
-        avg_reward = 0
+        avg_reward, avg_success = 0, 0
         images = []
 
         for episode in range(self.test_params.n_episodes):
             obs = self.env.reset()
-            episode_reward, episode_steps = 0, 0
+            episode_reward, episode_steps, episode_success = 0, 0, 0
 
             for _ in range(self.env_params.max_episode_steps):
                 if self.test_params.is_test and self.test_params.gif:
@@ -214,26 +249,37 @@ class RSMPC:
 
                 with torch.no_grad():
                     action = self.optimizer(obs)
-                obs, reward, done, _ = self.env.step(action)
+                obs, reward, done, info = self.env.step(action)
 
                 episode_reward += reward
+
+                try:
+                    episode_success += float(info['is_success'])
+                except KeyError:
+                    episode_success += 0
+
                 episode_steps += 1
 
                 if done and self.env_params.end_on_done:
                     break
 
             avg_reward += episode_reward
+            avg_success += episode_success / self.env_params.max_episode_steps
 
             if MPI.COMM_WORLD.Get_rank() == 0 and self.test_params.is_test:
-                print(colored('[TEST]', 'green') + ' episode: {}, episode_reward: {:.3f}'.format(episode, episode_reward))
+                print(colored('[TEST]', 'green') + ' episode: {}, episode_reward: {:.3f}, '
+                              'episode_success: {:.2f}'.format(episode + 1, episode_reward,
+                                                               episode_success / self.env_params.max_episode_steps))
 
         avg_reward /= self.test_params.n_episodes
+        avg_success /= self.test_params.n_episodes
 
         if MPI.COMM_WORLD.Get_rank() == 0 and self.test_params.is_test:
             print(colored('[TEST]', 'green') + ' avg reward: {:.3f}'.format(avg_reward))
+            print(colored('[TEST]', 'green') + ' avg success: {:.3f}'.format(avg_success))
 
             if self.test_params.gif:
                 imageio.mimsave('{}/{}.gif'.format(self.experiment_params.log_dir, self.env_params.id),
                                 [np.array(image) for n, image in enumerate(images) if n % 3 == 0], fps=10)
 
-        return avg_reward
+        return avg_reward, avg_success

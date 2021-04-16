@@ -80,7 +80,7 @@ class RSMPC:
 
         # reward function
         assert env_params.id in REWARD_FUNCTIONS, 'Reward function must be registered.'
-        self.reward_fn = REWARD_FUNCTIONS[env_params.id]()
+        self.reward_fn = REWARD_FUNCTIONS[env_params.id](env_params)
 
         # dynamics network
         self.dynamics = RSMPC_DYNAMICS_MODELS[env_params.id](env_params.obs_dim, env_params.action_dim)

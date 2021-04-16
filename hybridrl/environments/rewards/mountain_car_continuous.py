@@ -4,9 +4,10 @@ import numpy as np
 class MountainCarContinuousV0Reward:
     """MountainCarContinuous-v0 reward"""
 
-    def __init__(self):
+    def __init__(self, env_params):
         self.goal_pos = 0.45
         self.goal_vel = 0
+        self.env_params = env_params
 
     def __call__(self, obs, actions, obs_next):
         pos = obs[:, 0]

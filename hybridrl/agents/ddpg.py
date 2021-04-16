@@ -78,19 +78,20 @@ class DDPG:
 
     def train(self):
         total_steps, update_steps = 0, 0
-        all_rewards = []
+        all_rewards, all_successes = [], []
 
         for epoch in range(self.experiment_params.n_epochs):
             rollout_steps = 0
+            cycle_actor_loss, cycle_critic_loss = 0, 0
 
             for cycle in range(self.experiment_params.n_cycles):
-                cycle_actor_loss, cycle_critic_loss = 0, 0
+                rollout_actor_loss, rollout_critic_loss = 0, 0
 
                 for rollout in range(self.experiment_params.n_rollouts):
                     obs = self.env.reset()
                     self._reset()
 
-                    rollout_reward = 0
+                    rollout_reward, rollout_success = 0, 0
 
                     # decay noise
                     self._decay_epsilon()
@@ -103,6 +104,12 @@ class DDPG:
                         obs = obs_next
 
                         rollout_reward += reward
+
+                        try:
+                            rollout_success += float(info['is_success'])
+                        except KeyError:
+                            rollout_success += 0
+
                         total_steps += 1
                         rollout_steps += 1
 
@@ -110,6 +117,7 @@ class DDPG:
                             break
 
                     all_rewards.append(rollout_reward)
+                    all_successes.append(rollout_success / self.env_params.max_episode_steps)
 
                 if len(self.buffer) > self.agent_params.batch_size:
                     n_batches = rollout_steps if self.experiment_params.n_train_batches is None \
@@ -119,15 +127,19 @@ class DDPG:
                         self._soft_update(self.actor_target, self.actor)
                         self._soft_update(self.critic_target, self.critic)
 
-                        cycle_actor_loss += actor_loss
-                        cycle_critic_loss += critic_loss
+                        rollout_actor_loss += actor_loss
+                        rollout_critic_loss += critic_loss
                         update_steps += 1
 
+                cycle_actor_loss += rollout_actor_loss
+                cycle_critic_loss += rollout_critic_loss
+
             avg_reward = float(np.mean(all_rewards[-100:]))
+            avg_success = float(np.mean(all_successes[-100:]))
 
             if MPI.COMM_WORLD.Get_rank() == 0:
                 self.is_training = False
-                avg_test_reward = self._test()
+                avg_test_reward, avg_test_success = self._test()
                 self.is_training = True
 
                 data = {'time_steps': total_steps,
@@ -137,28 +149,33 @@ class DDPG:
                         'rollouts': rollout + 1,
                         'rollout_steps': rollout_steps,
                         'current_reward': all_rewards[-1],
+                        'current_success': all_successes[-1],
                         'avg_reward': avg_reward,
-                        'avg_test_reward': avg_test_reward}
+                        'avg_success': avg_success,
+                        'avg_test_reward': avg_test_reward,
+                        'avg_test_success': avg_test_success,
+                        'cycle_actor_loss': cycle_actor_loss,
+                        'cycle_critic_loss': cycle_critic_loss,
+                        'rollout_actor_loss': rollout_actor_loss,
+                        'rollout_critic_loss': rollout_critic_loss}
                 self.logger.add(data)
 
         self._save()
 
     def _learn(self):
-        obs, action, reward, _, obs_next = self.buffer.sample_batch(self.agent_params.batch_size)
+        obs, action, reward, done, obs_next = self.buffer.sample_batch(self.agent_params.batch_size)
 
-        #done = (done == False) * 1
+        done = (done == False) * 1
         obs = torch.tensor(obs, dtype=torch.float32)
         action = torch.tensor(action, dtype=torch.float32)
         reward = torch.tensor(np.expand_dims(reward, axis=1), dtype=torch.float32)
-        #done = torch.tensor(np.expand_dims(done, axis=1), dtype=torch.float32)
+        done = torch.tensor(np.expand_dims(done, axis=1), dtype=torch.float32)
         obs_next = torch.tensor(obs_next, dtype=torch.float32)
 
         with torch.no_grad():
             action_target = self.actor_target(obs_next)
             target_q = self.critic_target(obs_next, action_target).detach()
-            #q_expected = reward[:, None] + done[:, None] * self.agent_params.gamma * target_q
-            #q_expected = reward + done * self.agent_params.gamma * target_q
-            q_expected = reward + self.agent_params.gamma * target_q
+            q_expected = reward + done * self.agent_params.gamma * target_q
         q_predicted = self.critic(obs, action)
 
         # critic gradient
@@ -208,8 +225,7 @@ class DDPG:
         self._test()
 
     def _test(self):
-        avg_reward = 0
-        avg_success = 0
+        avg_reward, avg_success = 0, 0
         images = []
 
         for episode in range(self.test_params.n_episodes):
@@ -225,16 +241,16 @@ class DDPG:
                     self.env.render()
 
                 with torch.no_grad():
-                    #obs = torch.tensor(obs, dtype=torch.float32).unsqueeze(0)
-                    #action = self.actor(obs).detach()
-                    #action = action.squeeze(0).cpu().numpy()
-                    #action = np.clip(action, -1., 1.)
                     action = self.get_action(obs)
                 obs, reward, done, info = self.env.step(action)
 
                 episode_reward += reward
-                episode_success += 0 #float(info['is_success'])
                 episode_steps += 1
+
+                try:
+                    episode_success += float(info['is_success'])
+                except KeyError:
+                    episode_success += 0
 
                 if done and self.env_params.end_on_done:
                     break
@@ -248,12 +264,14 @@ class DDPG:
                                                                episode_success / self.env_params.max_episode_steps))
 
         avg_reward /= self.test_params.n_episodes
+        avg_success /= self.test_params.n_episodes
 
         if MPI.COMM_WORLD.Get_rank() == 0 and self.test_params.is_test:
             print(colored('[TEST]', 'green') + ' avg reward: {:.3f}'.format(avg_reward))
+            print(colored('[TEST]', 'green') + ' avg success: {:.3f}'.format(avg_success))
 
             if self.test_params.gif:
                 imageio.mimsave('{}/{}.gif'.format(self.experiment_params.log_dir, self.env_params.id),
                                 [np.array(image) for n, image in enumerate(images) if n % 3 == 0], fps=10)
 
-        return avg_reward
+        return avg_reward, avg_success

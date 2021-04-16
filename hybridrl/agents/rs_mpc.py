@@ -31,19 +31,19 @@ class RSMPCOptimizer:
     def set_dynamics(self, state_dict):
         self.dynamics.load_state_dict(state_dict)
 
-    def _get_random_actions(self, n_samples):
-        return np.random.uniform(-1, 1, size=(n_samples, self.env_params.action_dim))
+    def _get_random_actions(self, population_size):
+        return np.random.uniform(-1, 1, size=(population_size, self.env_params.action_dim))
 
     def __call__(self, obs):
-        init_actions = self._get_random_actions(self.agent_params.n_samples)
-        obs = np.tile(obs, (self.agent_params.n_samples, 1))
-        total_rewards = np.zeros(self.agent_params.n_samples)
+        init_actions = self._get_random_actions(self.agent_params.population_size)
+        obs = np.tile(obs, (self.agent_params.population_size, 1))
+        total_rewards = np.zeros(self.agent_params.population_size)
 
         for n in range(self.agent_params.horizon):
             if n == 0:
                 actions = init_actions
             else:
-                actions = self._get_random_actions(self.agent_params.n_samples)
+                actions = self._get_random_actions(self.agent_params.population_size)
 
             obs = torch.tensor(obs, dtype=torch.float32)
             actions = torch.tensor(actions, dtype=torch.float32)

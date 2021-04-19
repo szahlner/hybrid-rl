@@ -188,7 +188,7 @@ class DDPG:
 
         # actor gradient
         action_predicted = self.actor(obs)
-        actor_loss = (-self.critic.forward(obs, action_predicted)).mean()
+        actor_loss = (-self.critic(obs, action_predicted)).mean()
         self.actor_optimizer.zero_grad()
         actor_loss.backward()
         sync_grads(self.actor)

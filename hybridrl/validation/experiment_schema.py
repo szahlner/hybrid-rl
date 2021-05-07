@@ -18,7 +18,8 @@ experiment_schema = {
     Optional('n_epochs', default=10): And(int, lambda n: n > 0),
     Optional('n_cycles', default=10): And(int, lambda n: n > 0),
     Optional('n_rollouts', default=10): And(int, lambda n: n > 0),
-    Optional('n_train_batches', default=None): And(int, lambda n: n > 0)
+    Optional('n_train_batches', default=None): And(int, lambda n: n > 0),
+    Optional('n_train_batches_ddpg', default=None): And(int, lambda n: n > 0)
 }
 
 EXPERIMENT_SCHEMA = Schema(experiment_schema)

@@ -19,6 +19,9 @@ from hybridrl.models.cem import DynamicsPandaReachV0 as CEM_DynamicsPandaReachV0
 from hybridrl.models.cem import DynamicsPandaPushV0 as CEM_DynamicsPandaPushV0
 from hybridrl.models.cem import DynamicsShadowHandReachV0 as CEM_DynamicsShadowHandReachV0
 
+from hybridrl.models.rs_mpc_ddpg import DynamicsPendulumV0 as RSMPCDDPG_DynamicsPendulumV0
+from hybridrl.models.rs_mpc_ddpg import DynamicsPandaReachV0 as RSMPCDDPG_DynamicsPandaReachV0
+
 
 DDPG_ACTOR_MODELS = {
     'Pendulum-v0': DDPG_ActorPendulumV0,
@@ -48,4 +51,9 @@ CEM_DYNAMICS_MODELS = {
     'PandaReach-v0': CEM_DynamicsPandaReachV0,
     'PandaPush-v0': CEM_DynamicsPandaPushV0,
     'ShadowHandReach-v0': CEM_DynamicsShadowHandReachV0
+}
+
+RSMPCDDPG_DYNAMICS_MODELS = {
+    'Pendulum-v0': RSMPCDDPG_DynamicsPendulumV0,
+    'PandaReach-v0': RSMPCDDPG_DynamicsPandaReachV0
 }

@@ -48,7 +48,7 @@ class RSMPCOptimizer:
             obs = torch.tensor(obs, dtype=torch.float32)
             actions = torch.tensor(actions, dtype=torch.float32)
             with torch.no_grad():
-                obs_next = self.dynamics(obs, actions).detach()
+                obs_next = self.dynamics(obs, actions)
 
             obs = obs.detach().cpu().numpy()
             obs_next = obs_next.detach().cpu().numpy()

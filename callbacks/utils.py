@@ -6,6 +6,9 @@ from pprint import pprint
 from typing import Any, Dict
 
 
+MODEL_TYPES = ['deterministic', 'stochastic']
+
+
 def read_hyperparameters(algo: str,
                          env_id: str,
                          verbose: int = 2) -> Dict[str, Any]:

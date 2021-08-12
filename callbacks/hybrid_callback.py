@@ -8,7 +8,7 @@ from stable_baselines3.common.callbacks import BaseCallback
 
 from callbacks.dynamics.deterministic_models import DeterministicEnsembleDynamicsModel
 from callbacks.dynamics.stochastic_models import StochasticEnsembleDynamicsModel
-from callbacks.utils import read_hyperparameters, save_hyperparameters, get_log_path
+from callbacks.utils import read_hyperparameters, save_hyperparameters, get_log_path, MODEL_TYPES
 
 
 class HyBridCallback(BaseCallback):
@@ -50,7 +50,6 @@ class HyBridCallback(BaseCallback):
         hyperparams = read_hyperparameters(algo=algo, env_id=env_id, verbose=self.verbose)
 
         self.train_freq = hyperparams['train_freq']
-        # self.real_ratio = hyperparams['real_ratio']
         self.rollout_batch_size = hyperparams['rollout_batch_size']
         self.batch_size = hyperparams['batch_size']
         self.holdout_ratio = hyperparams['holdout_ratio']
@@ -61,11 +60,11 @@ class HyBridCallback(BaseCallback):
         self.policy_batch_size = 2048  # int(self.model.batch_size / hyperparams['real_ratio'])
 
         self.train_freq_policy = hyperparams['train_freq_policy']
-        self.gradient_steps_policy = hyperparams['gradient_steps_policy']  # int(max(0, self.model.gradient_steps))
+        self.gradient_steps_policy = hyperparams['gradient_steps_policy']
         self.log_path = get_log_path(self.log_path, algo, env_id)
 
         assert isinstance(self.model.action_space, gym.spaces.Box), 'Box space is required. No discrete space'
-        assert hyperparams['model_type'] in ['deterministic', 'stochastic'], 'model_type must be "deterministic" or "stochastic"'
+        assert hyperparams['model_type'] in MODEL_TYPES, 'model_type must be "deterministic" or "stochastic"'
 
         # save hyperparams
         save_hyperparameters(self.log_path, env_id, hyperparams)
@@ -79,7 +78,8 @@ class HyBridCallback(BaseCallback):
         # number of states / actions
         if isinstance(self.model.observation_space, gym.spaces.dict.Dict):
             assert hyperparams['n_reward'] == 0, 'n_reward must be 0 (zero), it will be computed'
-            assert self.rollout_batch_size % self.model.replay_buffer.max_episode_length == 0, 'Modulo operation must be 0.'
+            assert self.rollout_batch_size % self.model.replay_buffer.max_episode_length == 0, \
+                'Modulo operation must be 0.'
 
             n_state = self.model.observation_space['observation'].shape[0] + \
                       self.model.observation_space['achieved_goal'].shape[0]

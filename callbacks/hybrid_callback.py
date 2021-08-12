@@ -3,12 +3,14 @@ import numpy as np
 import torch
 import gym
 import copy
+import warnings
 
 from stable_baselines3.common.callbacks import BaseCallback
+from stable_baselines3.common.buffers import ReplayBuffer
 
 from callbacks.dynamics.deterministic_models import DeterministicEnsembleDynamicsModel
 from callbacks.dynamics.stochastic_models import StochasticEnsembleDynamicsModel
-from callbacks.utils import read_hyperparameters, save_hyperparameters, get_log_path, MODEL_TYPES
+from callbacks.utils import read_hyperparameters, save_hyperparameters, get_log_path, ALGOS, MODEL_TYPES
 
 
 class HyBridCallback(BaseCallback):
@@ -45,9 +47,9 @@ class HyBridCallback(BaseCallback):
         """
         This method is called before the first rollout starts.
         """
-        algo = '{}{}'.format(self.algo_prefix, self.locals['tb_log_name'].lower())
+        self.algo = '{}{}'.format(self.algo_prefix, self.locals['tb_log_name'].lower())
         env_id = self.model.env.envs[0].spec.id
-        hyperparams = read_hyperparameters(algo=algo, env_id=env_id, verbose=self.verbose)
+        hyperparams = read_hyperparameters(algo=self.algo, env_id=env_id, verbose=self.verbose)
 
         self.train_freq = hyperparams['train_freq']
         self.rollout_batch_size = hyperparams['rollout_batch_size']
@@ -61,7 +63,7 @@ class HyBridCallback(BaseCallback):
 
         self.train_freq_policy = hyperparams['train_freq_policy']
         self.gradient_steps_policy = hyperparams['gradient_steps_policy']
-        self.log_path = get_log_path(self.log_path, algo, env_id)
+        self.log_path = get_log_path(self.log_path, self.algo, env_id)
 
         assert isinstance(self.model.action_space, gym.spaces.Box), 'Box space is required. No discrete space'
         assert hyperparams['model_type'] in MODEL_TYPES, 'model_type must be "deterministic" or "stochastic"'
@@ -71,6 +73,7 @@ class HyBridCallback(BaseCallback):
 
         # device
         if self.model.device.type == 'cpu':
+            warnings.warn('Using CPU only will be very slow!', UserWarning)
             self.use_cuda = False
         else:
             self.use_cuda = True
@@ -87,36 +90,42 @@ class HyBridCallback(BaseCallback):
             n_state = self.model.observation_space.shape[0]
         n_action = self.model.action_space.shape[0]
 
+        # setup buffer
+        self.replay_buffer = ReplayBuffer(buffer_size=self.buffer_size,
+                                          observation_space=self.model.observation_space,
+                                          action_space=self.model.action_space,
+                                          handle_timeout_termination=True)
+
         # setup buffers
-        self.vec_normalize_env = self.model.get_vec_normalize_env()
-        self.replay_buffer = copy.deepcopy(self.model.replay_buffer)
-        self.replay_buffer_clone = copy.deepcopy(self.model.replay_buffer)
+        # self.vec_normalize_env = self.model.get_vec_normalize_env()
+        # self.replay_buffer = copy.deepcopy(self.model.replay_buffer)
+        # self.replay_buffer_clone = copy.deepcopy(self.model.replay_buffer)
 
         # change buffer size
-        actions_shape = self.replay_buffer.actions.shape
-        actions_shape = (self.buffer_size, actions_shape[1], actions_shape[2])
-        observations_shape = self.replay_buffer.observations.shape
-        observations_shape = (self.buffer_size, observations_shape[1], observations_shape[2])
+        # actions_shape = self.replay_buffer.actions.shape
+        # actions_shape = (self.buffer_size, actions_shape[1], actions_shape[2])
+        # observations_shape = self.replay_buffer.observations.shape
+        # observations_shape = (self.buffer_size, observations_shape[1], observations_shape[2])
 
-        self.replay_buffer.buffer_size = self.buffer_size
-        self.replay_buffer.actions = np.zeros(shape=actions_shape, dtype=np.float32)
-        self.replay_buffer.observations = np.zeros(shape=observations_shape, dtype=np.float32)
-        self.replay_buffer.next_observations = np.zeros(shape=observations_shape, dtype=np.float32)
-        self.replay_buffer.dones = np.zeros(shape=(self.buffer_size, 1), dtype=np.float32)
-        self.replay_buffer.rewards = np.zeros(shape=(self.buffer_size, 1), dtype=np.float32)
-        self.replay_buffer.timeouts = np.zeros(shape=(self.buffer_size, 1), dtype=np.float32)
+        # self.replay_buffer.buffer_size = self.buffer_size
+        # self.replay_buffer.actions = np.zeros(shape=actions_shape, dtype=np.float32)
+        # self.replay_buffer.observations = np.zeros(shape=observations_shape, dtype=np.float32)
+        # self.replay_buffer.next_observations = np.zeros(shape=observations_shape, dtype=np.float32)
+        # self.replay_buffer.dones = np.zeros(shape=(self.buffer_size, 1), dtype=np.float32)
+        # self.replay_buffer.rewards = np.zeros(shape=(self.buffer_size, 1), dtype=np.float32)
+        # self.replay_buffer.timeouts = np.zeros(shape=(self.buffer_size, 1), dtype=np.float32)
 
-        self.replay_buffer_clone.buffer_size = self.buffer_size
-        self.replay_buffer_clone.actions = np.zeros(shape=actions_shape, dtype=np.float32)
-        self.replay_buffer_clone.observations = np.zeros(shape=observations_shape, dtype=np.float32)
-        self.replay_buffer_clone.next_observations = np.zeros(shape=observations_shape, dtype=np.float32)
-        self.replay_buffer_clone.dones = np.zeros(shape=(self.buffer_size, 1), dtype=np.float32)
-        self.replay_buffer_clone.rewards = np.zeros(shape=(self.buffer_size, 1), dtype=np.float32)
-        self.replay_buffer_clone.timeouts = np.zeros(shape=(self.buffer_size, 1), dtype=np.float32)
+        # self.replay_buffer_clone.buffer_size = self.buffer_size
+        # self.replay_buffer_clone.actions = np.zeros(shape=actions_shape, dtype=np.float32)
+        # self.replay_buffer_clone.observations = np.zeros(shape=observations_shape, dtype=np.float32)
+        # self.replay_buffer_clone.next_observations = np.zeros(shape=observations_shape, dtype=np.float32)
+        # self.replay_buffer_clone.dones = np.zeros(shape=(self.buffer_size, 1), dtype=np.float32)
+        # self.replay_buffer_clone.rewards = np.zeros(shape=(self.buffer_size, 1), dtype=np.float32)
+        # self.replay_buffer_clone.timeouts = np.zeros(shape=(self.buffer_size, 1), dtype=np.float32)
 
-        if isinstance(self.model.observation_space, gym.spaces.dict.Dict):
-            self.replay_buffer.env = self.model.get_env()
-            self.replay_buffer_clone.env = self.model.get_env()
+        # if isinstance(self.model.observation_space, gym.spaces.dict.Dict):
+        #     self.replay_buffer.env = self.model.get_env()
+        #     self.replay_buffer_clone.env = self.model.get_env()
 
         # setup dynamics model
         if hyperparams['model_type'] == 'deterministic':
@@ -456,9 +465,14 @@ class HyBridCallback(BaseCallback):
 
     def _train_policy(self) -> None:
 
-        self.replay_buffer_clone = self.model.replay_buffer
-        self.model.replay_buffer = self.replay_buffer
-        self.model.train(batch_size=self.policy_batch_size, gradient_steps=self.gradient_steps_policy)
-        self.model.replay_buffer = self.replay_buffer_clone
+        ALGOS[self.algo.upper()](buffer=self.replay_buffer,
+                                 model=self.model,
+                                 gradient_steps=self.gradient_steps_policy,
+                                 batch_size=self.policy_batch_size,
+                                 use_cuda=self.use_cuda)
 
-        return
+        # self.replay_buffer_clone = self.model.replay_buffer
+        # self.model.replay_buffer = self.replay_buffer
+        # self.model.train(batch_size=self.policy_batch_size, gradient_steps=self.gradient_steps_policy)
+        # self.model.replay_buffer = self.replay_buffer_clone
+

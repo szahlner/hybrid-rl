@@ -5,6 +5,14 @@ from collections import OrderedDict
 from pprint import pprint
 from typing import Any, Dict
 
+from callbacks.algorithms.hybrid_ddpg import train_hybrid_ddpg
+from callbacks.algorithms.hybrid_sac import train_hybrid_sac
+
+
+ALGOS = {
+    'HB-DDPG': train_hybrid_ddpg,
+    'HB-SAC': train_hybrid_sac,
+}
 
 MODEL_TYPES = ['deterministic', 'stochastic']
 

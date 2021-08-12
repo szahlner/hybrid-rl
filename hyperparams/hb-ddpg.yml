@@ -1,0 +1,59 @@
+HalfCheetahBulletEnv-v0: &pybullet-defaults
+  n_timesteps: !!float 1e6
+  policy: 'MlpPolicy'
+  gamma: 0.98
+  buffer_size: 200000
+  learning_starts: 10000
+  noise_type: 'normal'
+  noise_std: 0.1
+  gradient_steps: 1
+  train_freq: 1
+  learning_rate: !!float 1e-3
+  policy_kwargs: "dict(net_arch=[400, 300])"
+  callback:
+    - callbacks.hybrid_callback.HyBridCallback:
+        log_path: 'logs'
+        algo_prefix: 'hb-'
+        test_confidence_every: 10000
+
+AntBulletEnv-v0:
+  <<: *pybullet-defaults
+
+PandaPush-v1: &her-defaults
+  env_wrapper: sb3_contrib.common.wrappers.TimeFeatureWrapper
+  n_timesteps: !!float 1e6
+  policy: 'MultiInputPolicy'
+  buffer_size: 1000000
+  batch_size: 256
+  gamma: 0.95
+  learning_rate: !!float 1e-3
+  tau: 0.05
+  replay_buffer_class: HerReplayBuffer
+  replay_buffer_kwargs: "dict(
+    online_sampling=True,
+    goal_selection_strategy='future',
+    n_sampled_goal=4,
+  )"
+  policy_kwargs: "dict(net_arch=[256, 256, 256])"
+  learning_starts: 500
+  noise_type: 'normal'
+  noise_std: 0.2
+  gradient_steps: 40
+  train_freq: [ 1, "episode" ]
+  normalize: True
+  callback:
+    - callbacks.hybrid_callback.HyBridCallback:
+        log_path: 'logs'
+        algo_prefix: 'hb-'
+        test_confidence_every: 10000
+        random_exploration: 0.3
+
+PandaSlide-v1:
+  <<: *her-defaults
+  n_timesteps: !!float 3e6
+
+PandaPickAndPlace-v1:
+  <<: *her-defaults
+
+PandaStack-v1:
+  <<: *her-defaults

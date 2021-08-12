@@ -142,12 +142,10 @@ Leap.py
 # Compiled source
 *.dll
 *.o
-*.so
 *.pyc
 #*.pyd
 *.egg-info
 *.pkl
-__pycache__/
 
 # Libraries 
 *.lib
@@ -159,15 +157,18 @@ __pycache__/
 venv
 
 # rl-baselines3-zoo-master ignore
-logs/*
-rl-trained-agents/*
-scripts/*
-tests/*
+logs
+rl-trained-agents
+tests
 enjoy.py
 requirements.txt
 train.py
 
 # rl-baselines3-zoo-master add
+!scripts
+scripts/*
+!scripts/plot_confidence.py
+
 !utils
 utils/*
 !utils/utils.py

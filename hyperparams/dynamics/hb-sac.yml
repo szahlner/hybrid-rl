@@ -7,24 +7,22 @@ HalfCheetahBulletEnv-v0: &pybullet-defaults
   dr: 0.05
   loss_decay: False
   train_freq: 250
-  real_ratio: 0.13
   rollout_batch_size: 100000
   rollout_length: 1
-  batches: 10000
+  batches: 100000
   batch_size: 256
   holdout_ratio: 0.2
   max_epochs_since_update: 5
   buffer_size: 1000000
   model_type: 'deterministic'
-  train_freq_policy: 250
-  gradient_steps_policy: 250
+  train_freq_policy: 8
+  gradient_steps_policy: 8
 
 AntBulletEnv-v0:
   <<: *pybullet-defaults
 
 HopperBulletEnv-v0:
   <<: *pybullet-defaults
-  real_ratio: 0.13
 
 Walker2DBulletEnv-v0:
   <<: *pybullet-defaults

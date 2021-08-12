@@ -1,2 +1,0 @@
-from hybridrl.environments.robotics.shadow_hand.shadow_hand_reach_env import ShadowHandReachGoalEnv
-from hybridrl.environments.robotics.shadow_hand.shadow_hand_reach_env import ShadowHandReachGoalEnvAllRandom

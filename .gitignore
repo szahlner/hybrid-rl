@@ -158,7 +158,28 @@ __pycache__/
 # Python virtualenv 
 venv
 
-runs/**/*.npz
-runs/**/*.pt
-runs/**/*.gif
-runs/**/*.png
+# rl-baselines3-zoo-master ignore
+logs/*
+rl-trained-agents/*
+scripts/*
+tests/*
+enjoy.py
+requirements.txt
+train.py
+
+# rl-baselines3-zoo-master add
+!utils
+utils/*
+!utils/utils.py
+
+!hyperparams
+hyperparams/*
+!hyperparams/hb-ddpg.yml
+!hyperparams/hb-sac.yml
+!hyperparams/hb-tqc.yml
+
+!hyperparams/dynamics
+hyperparams/dynamics/*
+!hyperparams/dynamics/hb-ddpg.yml
+!hyperparams/dynamics/hb-sac.yml
+!hyperparams/dynamics/hb-tqc.yml

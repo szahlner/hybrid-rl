@@ -157,7 +157,7 @@ Leap.py
 venv
 
 # rl-baselines3-zoo-master ignore
-logs
+log*
 rl-trained-agents
 tests
 enjoy.py

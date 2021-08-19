@@ -6,11 +6,11 @@ from stable_baselines3.common.buffers import ReplayBuffer
 from stable_baselines3.common.utils import polyak_update
 
 
-def train_hybrid_sac(buffer: ReplayBuffer,
-                     model: SAC,
-                     gradient_steps: int,
-                     batch_size: int = 100,
-                     use_cuda: bool = False) -> None:
+def train_policy(buffer: ReplayBuffer,
+                 model: SAC,
+                 gradient_steps: int,
+                 batch_size: int = 100,
+                 use_cuda: bool = False) -> None:
     """
     Args:
         buffer (stable_baselines3.common.buffers.ReplayBuffer): Replay buffer to use.

@@ -5,11 +5,14 @@ import gym
 import copy
 import warnings
 
-from stable_baselines3.common.callbacks import BaseCallback
-from stable_baselines3.common.buffers import ReplayBuffer
+from torch.nn import functional as F
 
-from callbacks.dynamics.deterministic_models import DeterministicEnsembleDynamicsModel
-from callbacks.dynamics.stochastic_models import StochasticEnsembleDynamicsModel
+from stable_baselines3.common.callbacks import BaseCallback
+from stable_baselines3.common.utils import polyak_update
+
+from callbacks.buffers import ReplayBuffer
+from callbacks.dynamics.deterministic import DeterministicEnsembleDynamicsModel
+from callbacks.dynamics.stochastic import StochasticEnsembleDynamicsModel
 from callbacks.utils import read_hyperparameters, save_hyperparameters, get_log_path, ALGOS, MODEL_TYPES
 
 
@@ -24,7 +27,6 @@ class HyBridCallback(BaseCallback):
         super(HyBridCallback, self).__init__(verbose)
         self.env_model = None
         self.train_freq = np.inf
-        # self.real_ratio = 1.
         self.rollout_batch_size = None
         self.replay_buffer = None
         self.batch_size = None
@@ -48,6 +50,8 @@ class HyBridCallback(BaseCallback):
         This method is called before the first rollout starts.
         """
         self.algo = '{}{}'.format(self.algo_prefix, self.locals['tb_log_name'].lower())
+        self.train_policy = ALGOS[self.algo]
+
         env_id = self.model.env.envs[0].spec.id
         hyperparams = read_hyperparameters(algo=self.algo, env_id=env_id, verbose=self.verbose)
 
@@ -59,7 +63,7 @@ class HyBridCallback(BaseCallback):
         self.max_epochs_since_update = hyperparams['max_epochs_since_update']
         self.rollout_length = hyperparams['rollout_length']
         self.buffer_size = hyperparams['buffer_size']
-        self.policy_batch_size = 2048  # int(self.model.batch_size / hyperparams['real_ratio'])
+        self.batch_size_policy = hyperparams['batch_size_policy']
 
         self.train_freq_policy = hyperparams['train_freq_policy']
         self.gradient_steps_policy = hyperparams['gradient_steps_policy']
@@ -68,40 +72,47 @@ class HyBridCallback(BaseCallback):
         assert isinstance(self.model.action_space, gym.spaces.Box), 'Box space is required. No discrete space'
         assert hyperparams['model_type'] in MODEL_TYPES, 'model_type must be "deterministic" or "stochastic"'
 
-        # save hyperparams
+        # Save hyperparams
         save_hyperparameters(self.log_path, env_id, hyperparams)
 
-        # device
+        # Set device
         if self.model.device.type == 'cpu':
             warnings.warn('Using CPU only will be very slow!', UserWarning)
             self.use_cuda = False
         else:
             self.use_cuda = True
 
-        # number of states / actions
+        # Number of states / actions
         if isinstance(self.model.observation_space, gym.spaces.dict.Dict):
             assert hyperparams['n_reward'] == 0, 'n_reward must be 0 (zero), it will be computed'
             assert self.rollout_batch_size % self.model.replay_buffer.max_episode_length == 0, \
                 'Modulo operation must be 0.'
 
             n_state = self.model.observation_space['observation'].shape[0] + \
-                      self.model.observation_space['achieved_goal'].shape[0]
+                      self.model.observation_space['achieved_goal'].shape[0] + \
+                      self.model.observation_space['desired_goal'].shape[0]
         else:
             n_state = self.model.observation_space.shape[0]
         n_action = self.model.action_space.shape[0]
 
         # setup buffer
-        self.replay_buffer = ReplayBuffer(buffer_size=self.buffer_size,
-                                          observation_space=self.model.observation_space,
-                                          action_space=self.model.action_space,
-                                          handle_timeout_termination=True)
+        #self.replay_buffer = ReplayBuffer(buffer_size=self.buffer_size,
+        #                                  observation_space=self.model.observation_space,
+        #                                  action_space=self.model.action_space,
+        #                                  handle_timeout_termination=True)
 
-        # setup buffers
+        self.replay_buffer = ReplayBuffer(n_state=n_state,
+                                          n_action=n_action,
+                                          size=self.buffer_size,
+                                          use_cuda=self.use_cuda
+                                          )
+
+        # Setup buffers
         # self.vec_normalize_env = self.model.get_vec_normalize_env()
         # self.replay_buffer = copy.deepcopy(self.model.replay_buffer)
         # self.replay_buffer_clone = copy.deepcopy(self.model.replay_buffer)
 
-        # change buffer size
+        # Change buffer size
         # actions_shape = self.replay_buffer.actions.shape
         # actions_shape = (self.buffer_size, actions_shape[1], actions_shape[2])
         # observations_shape = self.replay_buffer.observations.shape
@@ -123,11 +134,11 @@ class HyBridCallback(BaseCallback):
         # self.replay_buffer_clone.rewards = np.zeros(shape=(self.buffer_size, 1), dtype=np.float32)
         # self.replay_buffer_clone.timeouts = np.zeros(shape=(self.buffer_size, 1), dtype=np.float32)
 
-        # if isinstance(self.model.observation_space, gym.spaces.dict.Dict):
-        #     self.replay_buffer.env = self.model.get_env()
-        #     self.replay_buffer_clone.env = self.model.get_env()
+        if isinstance(self.model.observation_space, gym.spaces.dict.Dict):
+            self.replay_buffer.env = self.model.get_env()
+            self.replay_buffer_clone.env = self.model.get_env()
 
-        # setup dynamics model
+        # Setup dynamics model
         if hyperparams['model_type'] == 'deterministic':
             self.env_model = DeterministicEnsembleDynamicsModel(use_cuda=self.use_cuda, n_state=n_state,
                                                                 n_action=n_action, n_ensemble=hyperparams['n_ensemble'],
@@ -137,6 +148,7 @@ class HyBridCallback(BaseCallback):
                                                                 lr=hyperparams['lr'], dropout_rate=hyperparams['dr'],
                                                                 use_decay=hyperparams['loss_decay'])
         else:
+            assert False, 'Not implemented yet'
             self.env_model = StochasticEnsembleDynamicsModel(use_cuda=self.use_cuda, n_state=n_state, n_action=n_action,
                                                              n_ensemble=hyperparams['n_ensemble'],
                                                              n_elite=hyperparams['n_elite'],
@@ -255,8 +267,8 @@ class HyBridCallback(BaseCallback):
                     scaled_action = np.clip(scaled_action + self.model.action_noise(), -1, 1)
 
                 if self.random_exploration > 0.:
-                    if np.random.normal() < self.random_exploration:
-                        scaled_action = np.random.normal(size=scaled_action.shape)
+                    if np.random.uniform() < self.random_exploration:
+                        scaled_action = np.random.uniform(size=scaled_action.shape)
 
                 # We store the scaled action in the buffer
                 buffer_action = scaled_action
@@ -326,11 +338,13 @@ class HyBridCallback(BaseCallback):
                 reward, new_obs = samples[:, :1], samples[:, 1:]
                 done = np.zeros_like(reward).astype(np.bool)
 
-                for n in range(len(action)):
-                    s = state[n]
-                    n_o = new_obs[n]
+                self.replay_buffer.add(state, action, reward, done, new_obs)
 
-                    self.replay_buffer.add(s, n_o, buffer_action[n], reward[n], done[n], [{}])
+                # for n in range(len(action)):
+                #     s = state[n]
+                #     n_o = new_obs[n]
+
+                #     self.replay_buffer.add(s, n_o, buffer_action[n], reward[n], done[n], [{}])
 
                 mask = ~done.astype(bool).flatten()
                 if mask.sum() == 0:
@@ -444,7 +458,8 @@ class HyBridCallback(BaseCallback):
             predictions_min_error = np.concatenate([data['predictions_min_error'], predictions_min_error], axis=0)
             predictions_max_error = np.concatenate([data['predictions_max_error'], predictions_max_error], axis=0)
 
-        np.savez_compressed(path, x=x,
+        np.savez_compressed(path,
+                            x=x,
                             error_mean=error_mean, error_mse=error_mse,
                             error_min_error=error_min_error, error_max_error=error_max_error,
                             error_min_confidence=error_min_confidence, error_max_confidence=error_max_confidence,
@@ -465,14 +480,63 @@ class HyBridCallback(BaseCallback):
 
     def _train_policy(self) -> None:
 
-        ALGOS[self.algo.upper()](buffer=self.replay_buffer,
-                                 model=self.model,
-                                 gradient_steps=self.gradient_steps_policy,
-                                 batch_size=self.policy_batch_size,
-                                 use_cuda=self.use_cuda)
+        self.model = self.train_policy(buffer=self.replay_buffer,
+                                       model=self.model,
+                                       gradient_steps=self.gradient_steps_policy,
+                                       batch_size=self.batch_size_policy,
+                                       use_cuda=self.use_cuda
+                                       )
 
-        # self.replay_buffer_clone = self.model.replay_buffer
-        # self.model.replay_buffer = self.replay_buffer
-        # self.model.train(batch_size=self.policy_batch_size, gradient_steps=self.gradient_steps_policy)
-        # self.model.replay_buffer = self.replay_buffer_clone
+        return
 
+        # Update learning rate according to lr schedule
+        #self._update_learning_rate([self.actor.optimizer, self.critic.optimizer])
+
+        actor_losses, critic_losses = [], []
+
+        for _ in range(self.gradient_steps_policy):
+            self.model._n_updates += 1
+
+            # Sample replay buffer
+            obs, actions, rewards, dones, next_obs = self.replay_buffer.sample(self.batch_size_policy)
+
+            if self.use_cuda:
+                obs = obs.cuda()
+                actions = actions.cuda()
+                rewards = rewards.cuda()
+                dones = dones.cuda()
+                next_obs = next_obs.cuda()
+
+            with torch.no_grad():
+                next_actions = (self.model.actor_target(next_obs)).clamp(-1, 1)
+
+                # Compute the next Q-values: min over all critics targets
+                next_q_values = torch.cat(self.model.critic_target(next_obs, next_actions), dim=1)
+                next_q_values, _ = torch.min(next_q_values, dim=1, keepdim=True)
+                target_q_values = rewards + (1 - dones) * self.model.gamma * next_q_values
+
+            # Get current Q-values estimates for each critic network
+            current_q_values = self.model.critic(obs, actions)
+
+            # Compute critic loss
+            critic_loss = sum([F.mse_loss(current_q, target_q_values) for current_q in current_q_values])
+            critic_losses.append(critic_loss.item())
+
+            # Optimize the critics
+            self.model.critic.optimizer.zero_grad()
+            critic_loss.backward()
+            self.model.critic.optimizer.step()
+
+            # Delayed policy updates
+            if self.model._n_updates % self.model.policy_delay == 0:
+                # Compute actor loss
+                actor_loss = -self.model.critic.q1_forward(obs, self.model.actor(obs)).mean()
+                actor_losses.append(actor_loss.item())
+
+                # Optimize the actor
+                self.model.actor.optimizer.zero_grad()
+                actor_loss.backward()
+                self.model.actor.optimizer.step()
+
+                polyak_update(self.model.critic.parameters(), self.model.critic_target.parameters(), self.model.tau)
+                polyak_update(self.model.actor.parameters(), self.model.actor_target.parameters(), self.model.tau)

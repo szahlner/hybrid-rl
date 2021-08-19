@@ -57,3 +57,6 @@ PandaPickAndPlace-v1:
 
 PandaStack-v1:
   <<: *her-defaults
+
+ShadowHandReach-v1:
+  <<: *her-defaults

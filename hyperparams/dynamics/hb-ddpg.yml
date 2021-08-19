@@ -10,7 +10,7 @@ HalfCheetahBulletEnv-v0: &pybullet-defaults
   real_ratio: 0.05
   rollout_batch_size: 100000
   rollout_length: 1
-  batches: 100000
+  batches: 10000
   batch_size: 256
   holdout_ratio: 0.2
   max_epochs_since_update: 5
@@ -18,6 +18,7 @@ HalfCheetahBulletEnv-v0: &pybullet-defaults
   model_type: 'deterministic'
   train_freq_policy: 1
   gradient_steps_policy: 1
+  batch_size_policy: 2048
 
 AntBulletEnv-v0:
   <<: *pybullet-defaults
@@ -34,7 +35,9 @@ PandaReach-v1:
 PandaPush-v1:
   <<: *pybullet-defaults
   n_reward: 0
-  batches: 100000
-  rollout_batch_size: 1000000
   batch_size: 256
   gradient_steps_policy: 200
+
+ShadowHandReach-v1:
+  <<: *pybullet-defaults
+  n_reward: 0

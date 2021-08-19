@@ -7,7 +7,6 @@ HalfCheetahBulletEnv-v0: &pybullet-defaults
   dr: 0.05
   loss_decay: False
   train_freq: 250
-  real_ratio: 0.05
   rollout_batch_size: 100000
   rollout_length: 1
   batches: 10000

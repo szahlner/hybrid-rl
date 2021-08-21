@@ -2,34 +2,41 @@ import torch
 
 from torch.nn import functional as F
 from stable_baselines3.sac.sac import SAC
-from stable_baselines3.common.buffers import ReplayBuffer
 from stable_baselines3.common.utils import polyak_update
 
+from callbacks.buffers import ReplayBuffer
 
-def train_policy(buffer: ReplayBuffer,
-                 model: SAC,
-                 gradient_steps: int,
-                 batch_size: int = 100,
-                 use_cuda: bool = False) -> None:
+
+def train_policy(
+        buffer: ReplayBuffer,
+        model: SAC,
+        gradient_steps: int,
+        batch_size: int = 100
+) -> SAC:
     """
     Args:
-        buffer (stable_baselines3.common.buffers.ReplayBuffer): Replay buffer to use.
-        model (from stable_baselines3.sac.sac.SAC): Algorithm to use.
+        buffer (ReplayBuffer): Replay buffer to use.
+        model (SAC): Algorithm to use.
         gradient_steps (int): Gradient steps to make.
         batch_size (int, optional): Batch size. Defaults to 100.
-        use_cuda (bool, optional): Whether to use cuda or not. Defaults to False.
+
+    Returns:
+        SAC: Used algorithm.
     """
-    vec_normalize_env = model.get_vec_normalize_env()
+    # vec_normalize_env = model.get_vec_normalize_env()
 
     for _ in range(gradient_steps):
-        batch = buffer.sample(batch_size, env=vec_normalize_env)
+        # batch = buffer.sample(batch_size, env=vec_normalize_env)
 
-        obs, actions, next_obs = batch.observations, batch.actions, batch.next_observations
-        rewards, dones = batch.rewards, batch.dones
+        # obs, actions, next_obs = batch.observations, batch.actions, batch.next_observations
+        # rewards, dones = batch.rewards, batch.dones
 
-        if use_cuda:
-            obs, actions, next_obs = obs.cuda(), actions.cuda(), next_obs.cuda()
-            rewards, dones = rewards.cuda(), dones.cuda()
+        # if use_cuda:
+        #     obs, actions, next_obs = obs.cuda(), actions.cuda(), next_obs.cuda()
+        #     rewards, dones = rewards.cuda(), dones.cuda()
+
+        # Sample replay buffer
+        obs, actions, rewards, dones, next_obs = buffer.sample(batch_size)
 
         # We need to sample because `log_std` may have changed between two gradient steps
         if model.use_sde:
@@ -96,3 +103,5 @@ def train_policy(buffer: ReplayBuffer,
             polyak_update(model.critic.parameters(), model.critic_target.parameters(), model.tau)
 
     model._n_updates += gradient_steps
+
+    return model

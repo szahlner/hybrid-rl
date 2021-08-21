@@ -17,12 +17,14 @@ from callbacks.utils import read_hyperparameters, save_hyperparameters, get_log_
 
 
 class HyBridCallback(BaseCallback):
-    def __init__(self,
-                 log_path: str = 'logs',
-                 algo_prefix: str = 'hb-',
-                 test_confidence_every: int = 10000,
-                 random_exploration: float = 0.,
-                 verbose: int = 2) -> None:
+    def __init__(
+            self,
+            log_path: str = 'logs',
+            algo_prefix: str = 'hb-',
+            test_confidence_every: int = 10000,
+            random_exploration: float = 0.0,
+            verbose: int = 2
+    ) -> None:
 
         super(HyBridCallback, self).__init__(verbose)
         self.env_model = None
@@ -101,11 +103,12 @@ class HyBridCallback(BaseCallback):
         #                                  action_space=self.model.action_space,
         #                                  handle_timeout_termination=True)
 
-        self.replay_buffer = ReplayBuffer(n_state=n_state,
-                                          n_action=n_action,
-                                          size=self.buffer_size,
-                                          use_cuda=self.use_cuda
-                                          )
+        self.replay_buffer = ReplayBuffer(
+            n_state=n_state,
+            n_action=n_action,
+            size=self.buffer_size,
+            use_cuda=self.use_cuda
+        )
 
         # Setup buffers
         # self.vec_normalize_env = self.model.get_vec_normalize_env()
@@ -134,28 +137,38 @@ class HyBridCallback(BaseCallback):
         # self.replay_buffer_clone.rewards = np.zeros(shape=(self.buffer_size, 1), dtype=np.float32)
         # self.replay_buffer_clone.timeouts = np.zeros(shape=(self.buffer_size, 1), dtype=np.float32)
 
-        if isinstance(self.model.observation_space, gym.spaces.dict.Dict):
-            self.replay_buffer.env = self.model.get_env()
-            self.replay_buffer_clone.env = self.model.get_env()
+        # if isinstance(self.model.observation_space, gym.spaces.dict.Dict):
+        #     self.replay_buffer.env = self.model.get_env()
+        #     self.replay_buffer_clone.env = self.model.get_env()
 
         # Setup dynamics model
         if hyperparams['model_type'] == 'deterministic':
-            self.env_model = DeterministicEnsembleDynamicsModel(use_cuda=self.use_cuda, n_state=n_state,
-                                                                n_action=n_action, n_ensemble=hyperparams['n_ensemble'],
-                                                                n_elite=hyperparams['n_elite'],
-                                                                n_reward=hyperparams['n_reward'],
-                                                                hidden_dim=hyperparams['n_hidden'],
-                                                                lr=hyperparams['lr'], dropout_rate=hyperparams['dr'],
-                                                                use_decay=hyperparams['loss_decay'])
+            self.env_model = DeterministicEnsembleDynamicsModel(
+                use_cuda=self.use_cuda,
+                n_state=n_state,
+                n_action=n_action,
+                n_ensemble=hyperparams['n_ensemble'],
+                n_elite=hyperparams['n_elite'],
+                n_reward=hyperparams['n_reward'],
+                hidden_dim=hyperparams['n_hidden'],
+                lr=hyperparams['lr'],
+                dropout_rate=hyperparams['dr'],
+                use_decay=hyperparams['loss_decay']
+            )
         else:
             assert False, 'Not implemented yet'
-            self.env_model = StochasticEnsembleDynamicsModel(use_cuda=self.use_cuda, n_state=n_state, n_action=n_action,
-                                                             n_ensemble=hyperparams['n_ensemble'],
-                                                             n_elite=hyperparams['n_elite'],
-                                                             n_reward=hyperparams['n_reward'],
-                                                             hidden_dim=hyperparams['n_hidden'],
-                                                             lr=hyperparams['lr'], dropout_rate=hyperparams['dr'],
-                                                             use_decay=hyperparams['loss_decay'])
+            self.env_model = StochasticEnsembleDynamicsModel(
+                use_cuda=self.use_cuda,
+                n_state=n_state,
+                n_action=n_action,
+                n_ensemble=hyperparams['n_ensemble'],
+                n_elite=hyperparams['n_elite'],
+                n_reward=hyperparams['n_reward'],
+                hidden_dim=hyperparams['n_hidden'],
+                lr=hyperparams['lr'],
+                dropout_rate=hyperparams['dr'],
+                use_decay=hyperparams['loss_decay']
+            )
 
     def _on_rollout_start(self) -> None:
         """
@@ -207,17 +220,35 @@ class HyBridCallback(BaseCallback):
         batches = min(self.model.replay_buffer.pos * self.model.replay_buffer.max_episode_length, self.batches)
         batch = self.model.replay_buffer.sample(batches, env=self.vec_normalize_env)
 
-        observations = torch.cat([batch.observations['observation'],
-                                  batch.observations['achieved_goal']], dim=1)
+        observations = torch.cat(
+            [
+                batch.observations['observation'],
+                batch.observations['achieved_goal'],
+                batch.observations['desired_goal']
+            ],
+            dim=1
+        )
 
-        next_observations = torch.cat([batch.next_observations['observation'],
-                                       batch.next_observations['achieved_goal']], dim=1)
+        next_observations = torch.cat(
+            [
+                batch.next_observations['observation'],
+                batch.next_observations['achieved_goal'],
+                batch.observations['desired_goal']
+            ],
+            dim=1
+        )
+
         actions = batch.actions
         labels = next_observations
 
-        self.env_model.train(observations, actions, labels,
-                             batch_size=self.batch_size, holdout_ratio=self.holdout_ratio,
-                             max_epochs_since_update=self.max_epochs_since_update)
+        self.env_model.train(
+            state=observations,
+            action=actions,
+            labels=labels,
+            batch_size=self.batch_size,
+            holdout_ratio=self.holdout_ratio,
+            max_epochs_since_update=self.max_epochs_since_update
+        )
 
     def _train_dynamics(self) -> None:
         batches = min(self.model.replay_buffer.pos, self.batches)
@@ -226,9 +257,14 @@ class HyBridCallback(BaseCallback):
         rewards, actions = batch.rewards, batch.actions
         labels = torch.cat([rewards, next_observations], dim=1)
 
-        self.env_model.train(observations, actions, labels,
-                             batch_size=self.batch_size, holdout_ratio=self.holdout_ratio,
-                             max_epochs_since_update=self.max_epochs_since_update)
+        self.env_model.train(
+            state=observations,
+            action=actions,
+            labels=labels,
+            batch_size=self.batch_size,
+            holdout_ratio=self.holdout_ratio,
+            max_epochs_since_update=self.max_epochs_since_update
+        )
 
     def _rollout_dynamics_dict(self) -> None:
         buffer_size = self.model.replay_buffer.pos * self.model.replay_buffer.max_episode_length
@@ -236,7 +272,14 @@ class HyBridCallback(BaseCallback):
 
         batch = self.model.replay_buffer.sample(batch_size, env=self.vec_normalize_env)
 
-        observations = torch.cat([batch.observations['observation'], batch.observations['achieved_goal']], dim=1)
+        observations = torch.cat(
+            [
+                batch.observations['observation'],
+                batch.observations['achieved_goal'],
+                batch.observations['desired_goal']
+            ],
+            dim=1
+        )
 
         n_state = self.model.observation_space['observation'].shape[0]
         n_goal = self.model.observation_space['achieved_goal'].shape[0]
@@ -480,12 +523,12 @@ class HyBridCallback(BaseCallback):
 
     def _train_policy(self) -> None:
 
-        self.model = self.train_policy(buffer=self.replay_buffer,
-                                       model=self.model,
-                                       gradient_steps=self.gradient_steps_policy,
-                                       batch_size=self.batch_size_policy,
-                                       use_cuda=self.use_cuda
-                                       )
+        self.model = self.train_policy(
+            buffer=self.replay_buffer,
+            model=self.model,
+            gradient_steps=self.gradient_steps_policy,
+            batch_size=self.batch_size_policy
+        )
 
         return
 

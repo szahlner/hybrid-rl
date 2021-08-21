@@ -4,24 +4,28 @@ from torch.nn import functional as F
 
 from stable_baselines3.ddpg.ddpg import DDPG
 from stable_baselines3.td3.td3 import TD3
-from stable_baselines3.common.buffers import ReplayBuffer
 from stable_baselines3.common.utils import polyak_update
+
+from callbacks.buffers import ReplayBuffer
 
 from typing import Union
 
 
-def train_policy(buffer: ReplayBuffer,
-                 model: Union[DDPG, TD3],
-                 gradient_steps: int,
-                 batch_size: int = 100,
-                 use_cuda: bool = False) -> Union[DDPG, TD3]:
+def train_policy(
+        buffer: ReplayBuffer,
+        model: Union[DDPG, TD3],
+        gradient_steps: int,
+        batch_size: int = 100
+) -> Union[DDPG, TD3]:
     """
     Args:
-        buffer (stable_baselines3.common.buffers.ReplayBuffer): Replay buffer to use.
-        model (from stable_baselines3.ddpg.ddpg.DDPG): Algorithm to use.
+        buffer (ReplayBuffer): Replay buffer to use.
+        model (DDPG, TD3): Algorithm to use. Note: TD3 is the successor of DDGP.
         gradient_steps (int): Gradient steps to make.
         batch_size (int, optional): Batch size. Defaults to 100.
-        use_cuda (bool, optional): Whether to use cuda or not. Defaults to False.
+
+    Returns:
+        Union[DDPG, TD3]: Used algorithm.
     """
     # Update learning rate according to lr schedule
     # self._update_learning_rate([self.actor.optimizer, self.critic.optimizer])

@@ -178,9 +178,11 @@ hyperparams/*
 !hyperparams/hb-ddpg.yml
 !hyperparams/hb-sac.yml
 !hyperparams/hb-tqc.yml
+!hyperparams/hb-td3.yml
 
 !hyperparams/dynamics
 hyperparams/dynamics/*
 !hyperparams/dynamics/hb-ddpg.yml
 !hyperparams/dynamics/hb-sac.yml
 !hyperparams/dynamics/hb-tqc.yml
+!hyperparams/dynamics/hb-td3.yml

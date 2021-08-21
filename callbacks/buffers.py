@@ -1,5 +1,5 @@
-import numpy as np
 import torch
+import numpy as np
 
 from typing import Tuple
 
@@ -103,3 +103,16 @@ class ReplayBuffer:
             "next_state": np.empty(shape=(self.size, self.n_state)),
         }
         self.count = 0
+
+    def save(self, save_path: str, verbose: int = 2) -> None:
+        np.savez_compressed(
+            file=save_path,
+            observations=self.buffer["state"],
+            actions=self.buffer["action"],
+            rewards=self.buffer["reward"],
+            dones=self.buffer["mask"],
+            next_observations=self.buffer["next_state"],
+        )
+
+        if verbose > 0:
+            print("Saved buffer to path: '{}'".format(save_path))

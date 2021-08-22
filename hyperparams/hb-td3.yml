@@ -25,3 +25,31 @@ HopperBulletEnv-v0:
 
 Walker2DBulletEnv-v0:
     <<: *pybullet-defaults
+
+ShadowHandReach-v1:
+    env_wrapper: sb3_contrib.common.wrappers.TimeFeatureWrapper
+    n_timesteps: !!float 1e6
+    policy: 'MultiInputPolicy'
+    batch_size: 256
+    gamma: 0.95
+    tau: 0.05
+    buffer_size: 1000000
+    learning_starts: 500
+    noise_type: 'normal'
+    noise_std: 0.2
+    train_freq: 50
+    gradient_steps: 40
+    learning_rate: !!float 1e-3
+    policy_kwargs: "dict(net_arch=[256, 256, 256])"
+    replay_buffer_class: HerReplayBuffer
+    replay_buffer_kwargs: "dict(
+            online_sampling=True,
+            goal_selection_strategy='future',
+            n_sampled_goal=4,
+        )"
+    callback:
+        - callbacks.hybrid_callback.HyBridCallback:
+            log_path: 'logs'
+            algo_prefix: 'hb-'
+            test_confidence_every: 10000
+            random_exploration: 0.3

@@ -28,3 +28,10 @@ HopperBulletEnv-v0:
 
 Walker2DBulletEnv-v0:
     <<: *pybullet-defaults
+
+# Shadow dexterous hand
+ShadowHandReach-v1:
+    <<: *pybullet-defaults
+    n_reward: 0
+    train_freq_policy: 50
+    gradient_steps_policy: 40

@@ -32,7 +32,7 @@ ShadowHandReach-v1:
     policy: 'MultiInputPolicy'
     batch_size: 256
     gamma: 0.95
-    tau: 0.05
+    tau: 0.001
     buffer_size: 1000000
     learning_starts: 500
     noise_type: 'normal'

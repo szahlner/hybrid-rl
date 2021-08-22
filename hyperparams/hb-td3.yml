@@ -40,7 +40,7 @@ ShadowHandReach-v1:
     train_freq: 50
     gradient_steps: 40
     learning_rate: !!float 1e-3
-    policy_kwargs: "dict(net_arch=[256, 256, 256])"
+    policy_kwargs: "dict(net_arch=[64, 64])"
     replay_buffer_class: HerReplayBuffer
     replay_buffer_kwargs: "dict(
             online_sampling=True,

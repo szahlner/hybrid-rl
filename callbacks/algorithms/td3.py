@@ -12,10 +12,10 @@ from typing import Union
 
 
 def train_policy(
-        buffer: ReplayBuffer,
-        model: Union[DDPG, TD3],
-        gradient_steps: int,
-        batch_size: int = 100
+    buffer: ReplayBuffer,
+    model: Union[DDPG, TD3],
+    gradient_steps: int,
+    batch_size: int = 100,
 ) -> Union[DDPG, TD3]:
     """
     Args:
@@ -35,14 +35,43 @@ def train_policy(
     for _ in range(gradient_steps):
         model._n_updates += 1
 
-        # Sample replay buffer
-        obs, actions, rewards, dones, next_obs = buffer.sample(batch_size)
+        # Sample from replay buffer
+        if buffer.n_goal is None:
+            # Env
+            obs, actions, rewards, dones, next_obs = buffer.sample(batch_size)
+        else:
+            # GoalEnv
+            (
+                obs,
+                achieved_goals,
+                desired_goals,
+                actions,
+                rewards,
+                dones,
+                next_obs,
+                next_achieved_goals,
+                next_desired_goals,
+            ) = buffer.sample(batch_size)
+
+            obs = {
+                "observation": obs,
+                "achieved_goal": achieved_goals,
+                "desired_goal": desired_goals,
+            }
+
+            next_obs = {
+                "observation": next_obs,
+                "achieved_goal": next_achieved_goals,
+                "desired_goal": next_desired_goals,
+            }
 
         with torch.no_grad():
             next_actions = (model.actor_target(next_obs)).clamp(-1, 1)
 
             # Compute the next Q-values: min over all critics targets
-            next_q_values = torch.cat(model.critic_target(next_obs, next_actions), dim=1)
+            next_q_values = torch.cat(
+                model.critic_target(next_obs, next_actions), dim=1
+            )
             next_q_values, _ = torch.min(next_q_values, dim=1, keepdim=True)
             target_q_values = rewards + (1 - dones) * model.gamma * next_q_values
 
@@ -50,7 +79,9 @@ def train_policy(
         current_q_values = model.critic(obs, actions)
 
         # Compute critic loss
-        critic_loss = sum([F.mse_loss(current_q, target_q_values) for current_q in current_q_values])
+        critic_loss = sum(
+            [F.mse_loss(current_q, target_q_values) for current_q in current_q_values]
+        )
         critic_losses.append(critic_loss.item())
 
         # Optimize the critics
@@ -69,11 +100,14 @@ def train_policy(
             actor_loss.backward()
             model.actor.optimizer.step()
 
-            polyak_update(model.critic.parameters(), model.critic_target.parameters(), model.tau)
-            polyak_update(model.actor.parameters(), model.actor_target.parameters(), model.tau)
+            polyak_update(
+                model.critic.parameters(), model.critic_target.parameters(), model.tau
+            )
+            polyak_update(
+                model.actor.parameters(), model.actor_target.parameters(), model.tau
+            )
 
     return model
-
 
     vec_normalize_env = model.get_vec_normalize_env()
 
@@ -82,7 +116,11 @@ def train_policy(
 
         batch = buffer.sample(batch_size, env=vec_normalize_env)
 
-        obs, actions, next_obs = batch.observations, batch.actions, batch.next_observations
+        obs, actions, next_obs = (
+            batch.observations,
+            batch.actions,
+            batch.next_observations,
+        )
         rewards, dones = batch.rewards, batch.dones
 
         if use_cuda:
@@ -93,7 +131,9 @@ def train_policy(
             next_actions = (model.actor_target(next_obs)).clamp(-1, 1)
 
             # Compute the next Q-values: min over all critics targets
-            next_q_values = torch.cat(model.critic_target(next_obs, next_actions), dim=1)
+            next_q_values = torch.cat(
+                model.critic_target(next_obs, next_actions), dim=1
+            )
             next_q_values, _ = torch.min(next_q_values, dim=1, keepdim=True)
             target_q_values = rewards + (1 - dones) * model.gamma * next_q_values
 
@@ -101,7 +141,9 @@ def train_policy(
         current_q_values = model.critic_target(obs, actions)
 
         # Compute critic loss
-        critic_loss = sum([F.mse_loss(current_q, target_q_values) for current_q in current_q_values])
+        critic_loss = sum(
+            [F.mse_loss(current_q, target_q_values) for current_q in current_q_values]
+        )
 
         # Optimize the critics
         model.critic.optimizer.zero_grad()
@@ -118,7 +160,11 @@ def train_policy(
             actor_loss.backward()
             model.actor.optimizer.step()
 
-            polyak_update(model.critic.parameters(), model.critic_target.parameters(), model.tau)
-            polyak_update(model.actor.parameters(), model.actor_target.parameters(), model.tau)
+            polyak_update(
+                model.critic.parameters(), model.critic_target.parameters(), model.tau
+            )
+            polyak_update(
+                model.actor.parameters(), model.actor_target.parameters(), model.tau
+            )
 
     return model

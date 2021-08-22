@@ -2,7 +2,6 @@ import os
 import numpy as np
 import torch
 import gym
-import copy
 import warnings
 
 from torch.nn import functional as F
@@ -15,15 +14,18 @@ from callbacks.dynamics.deterministic import DeterministicEnsembleDynamicsModel
 from callbacks.dynamics.stochastic import StochasticEnsembleDynamicsModel
 from callbacks.utils import read_hyperparameters, save_hyperparameters, get_log_path, ALGOS, MODEL_TYPES
 
+from typing import Optional
+
 
 class HyBridCallback(BaseCallback):
     def __init__(
             self,
-            log_path: str = 'logs',
             algo_prefix: str = 'hb-',
-            test_confidence_every: int = 10000,
+            log_path: str = 'logs',
             random_exploration: float = 0.0,
-            verbose: int = 2
+            test_confidence_every: int = 10000,
+            verbose: int = 2,
+            recorded_buffer: Optional[str] = None,
     ) -> None:
 
         super(HyBridCallback, self).__init__(verbose)
@@ -46,6 +48,9 @@ class HyBridCallback(BaseCallback):
         self.test_confidence_every = test_confidence_every
         self.random_exploration = random_exploration
         self.vec_normalize_env = None
+
+        self.recorded_buffer = recorded_buffer
+        self.replay_buffer_demo = None
 
     def _on_training_start(self) -> None:
         """
@@ -85,30 +90,66 @@ class HyBridCallback(BaseCallback):
             self.use_cuda = True
 
         # Number of states / actions
+        n_action = self.model.action_space.shape[0]
         if isinstance(self.model.observation_space, gym.spaces.dict.Dict):
             assert hyperparams['n_reward'] == 0, 'n_reward must be 0 (zero), it will be computed'
             assert self.rollout_batch_size % self.model.replay_buffer.max_episode_length == 0, \
                 'Modulo operation must be 0.'
 
-            n_state = self.model.observation_space['observation'].shape[0] + \
-                      self.model.observation_space['achieved_goal'].shape[0] + \
-                      self.model.observation_space['desired_goal'].shape[0]
+            n_state = self.model.observation_space['observation'].shape[0]
+            n_goal = self.model.observation_space['achieved_goal'].shape[0]
+
+            self.replay_buffer = ReplayBuffer(
+                n_state=n_state,
+                n_action=n_action,
+                n_goal=n_goal,
+                size=self.buffer_size,
+                use_cuda=self.use_cuda
+            )
+
+            n_state += 2 * n_goal
         else:
             n_state = self.model.observation_space.shape[0]
-        n_action = self.model.action_space.shape[0]
 
-        # setup buffer
+            self.replay_buffer = ReplayBuffer(
+                n_state=n_state,
+                n_action=n_action,
+                size=self.buffer_size,
+                use_cuda=self.use_cuda
+            )
+
+        # Setup buffers
         #self.replay_buffer = ReplayBuffer(buffer_size=self.buffer_size,
         #                                  observation_space=self.model.observation_space,
         #                                  action_space=self.model.action_space,
         #                                  handle_timeout_termination=True)
 
-        self.replay_buffer = ReplayBuffer(
-            n_state=n_state,
-            n_action=n_action,
-            size=self.buffer_size,
-            use_cuda=self.use_cuda
-        )
+        # self.replay_buffer = ReplayBuffer(
+        #     n_state=self.model.observation_space['observation'].shape[0],
+        #     n_action=n_action,
+        #     size=self.buffer_size,
+        #     use_cuda=self.use_cuda
+        # )
+
+        if self.recorded_buffer is not None:
+            # There are demonstrations available
+            data = np.load(self.recorded_buffer, allow_pickle=True)
+
+            states, actions, rewards = data["observations"], data["actions"], data["rewards"]
+            dones, next_states = data["dones"], data["next_observations"]
+
+            assert states.shape[-1] == n_state, "Observation dimensions must match"
+            assert next_states.shape[-1] == n_state, "Next Observation dimensions must match"
+            assert actions.shape[-1] == n_action, "Action dimensions must match"
+            assert rewards.shape[-1] == 1, "Rewards must be of length 1"
+            assert dones.shape[-1] == 1, "Dones must be of length 1"
+
+            self.replay_buffer_demo = ReplayBuffer(
+                n_state=self.model.observation_space['observation'],
+                n_action=n_action,
+                size=len(states),
+                use_cuda=self.use_cuda
+            )
 
         # Setup buffers
         # self.vec_normalize_env = self.model.get_vec_normalize_env()
@@ -187,6 +228,12 @@ class HyBridCallback(BaseCallback):
 
         :return: (bool) If the callback returns False, training is aborted early.
         """
+        if self.recorded_buffer is not None and self.num_timesteps % self.train_freq == 0:
+            if isinstance(self.model.observation_space, gym.spaces.dict.Dict):
+                pass
+            else:
+                self._train_dynamics_demonstrations()
+
         if self.num_timesteps > self.model.learning_starts and self.num_timesteps % self.train_freq == 0:
             if isinstance(self.model.observation_space, gym.spaces.dict.Dict):
                 self._train_dynamics_dict()
@@ -200,7 +247,8 @@ class HyBridCallback(BaseCallback):
             self._train_policy()
 
         if self.num_timesteps > self.model.learning_starts and self.num_timesteps % self.test_confidence_every == 0:
-            self._test_confidence()
+            # self._test_confidence()
+            pass
 
         return True
 
@@ -233,7 +281,7 @@ class HyBridCallback(BaseCallback):
             [
                 batch.next_observations['observation'],
                 batch.next_observations['achieved_goal'],
-                batch.observations['desired_goal']
+                batch.next_observations['desired_goal']
             ],
             dim=1
         )
@@ -266,6 +314,19 @@ class HyBridCallback(BaseCallback):
             max_epochs_since_update=self.max_epochs_since_update
         )
 
+    def _train_dynamics_demonstrations(self) -> None:
+        observations, actions, rewards, _, next_observations = self.replay_buffer_demo.sample(self.batches)
+        labels = torch.cat([rewards, next_observations], dim=1)
+
+        self.env_model.train(
+            state=observations,
+            action=actions,
+            labels=labels,
+            batch_size=self.batch_size,
+            holdout_ratio=self.holdout_ratio,
+            max_epochs_since_update=self.max_epochs_since_update
+        )
+
     def _rollout_dynamics_dict(self) -> None:
         buffer_size = self.model.replay_buffer.pos * self.model.replay_buffer.max_episode_length
         batch_size = min(buffer_size, self.rollout_batch_size)
@@ -284,7 +345,7 @@ class HyBridCallback(BaseCallback):
         n_state = self.model.observation_space['observation'].shape[0]
         n_goal = self.model.observation_space['achieved_goal'].shape[0]
 
-        batch_size = batch_size // self.model.replay_buffer.max_episode_length
+        batch_size = batch_size // 5  # self.model.replay_buffer.max_episode_length
 
         for start_pos in range(0, len(observations), batch_size):
             state = observations[start_pos:start_pos + batch_size].detach().cpu().numpy()
@@ -320,23 +381,35 @@ class HyBridCallback(BaseCallback):
                 ensemble_model_means, _ = self.env_model.predict(state, action)
 
                 new_obs = np.mean(ensemble_model_means, axis=0)
-                reward = self.replay_buffer.env.envs[0].compute_reward(new_obs[:, n_state:n_state + n_goal],
-                                                                       desired_goal, None)
+                reward = self.model.env.envs[0].compute_reward(new_obs[:, n_state:n_state + n_goal], desired_goal, None)
+                reward = np.expand_dims(reward, axis=-1)
                 done = np.zeros_like(reward).astype(np.bool)
 
-                for n in range(len(action)):
-                    s = {
-                        'observation': state[n, :n_state],
-                        'achieved_goal': state[n, n_state:n_state + n_goal],
-                        'desired_goal': desired_goal[n]
-                    }
-                    n_o = {
-                        'observation': new_obs[n, :n_state],
-                        'achieved_goal': new_obs[n, n_state:n_state + n_goal],
-                        'desired_goal': next_desired_goal[n]
-                    }
+                # for n in range(len(action)):
+                #     s = {
+                #         'observation': state[n, :n_state],
+                #         'achieved_goal': state[n, n_state:n_state + n_goal],
+                #         'desired_goal': desired_goal[n]
+                #     }
+                #     n_o = {
+                #         'observation': new_obs[n, :n_state],
+                #         'achieved_goal': new_obs[n, n_state:n_state + n_goal],
+                #         'desired_goal': next_desired_goal[n]
+                #     }
 
-                    self.replay_buffer.add(s, n_o, buffer_action[n], reward[n], done[n], [{}])
+                #     self.replay_buffer.add(s, n_o, buffer_action[n], reward[n], done[n], [{}])
+
+                self.replay_buffer.add(
+                    state=state[:, : n_state],
+                    achieved_goal=state[:, n_state:n_state + n_goal],
+                    desired_goal=desired_goal,
+                    action=buffer_action,
+                    reward=reward,
+                    mask=done,
+                    next_state=new_obs[:, : n_state],
+                    next_achieved_goal=new_obs[:, n_state:n_state + n_goal],
+                    next_desired_goal=next_desired_goal
+                )
 
                 mask = ~done.astype(bool).flatten()
                 if mask.sum() == 0:
@@ -381,7 +454,14 @@ class HyBridCallback(BaseCallback):
                 reward, new_obs = samples[:, :1], samples[:, 1:]
                 done = np.zeros_like(reward).astype(np.bool)
 
-                self.replay_buffer.add(state, action, reward, done, new_obs)
+                # TODO: buffer_action or action?
+                self.replay_buffer.add(
+                    state=state,
+                    action=buffer_action,
+                    reward=reward,
+                    mask=done,
+                    next_state=new_obs
+                )
 
                 # for n in range(len(action)):
                 #     s = state[n]
@@ -398,9 +478,11 @@ class HyBridCallback(BaseCallback):
         if isinstance(self.model.observation_space, gym.spaces.dict.Dict):
             batch = self.model.replay_buffer.sample(batch_size, env=self.vec_normalize_env)
             state = torch.cat([batch.observations['observation'],
-                               batch.observations['achieved_goal']], dim=1)
+                               batch.observations['achieved_goal'],
+                               batch.observations['desired_goal']], dim=1)
             next_state = torch.cat([batch.next_observations['observation'],
-                                    batch.next_observations['achieved_goal']], dim=1)
+                                    batch.next_observations['achieved_goal'],
+                                    batch.next_observations['desired_goal']], dim=1)
 
             state = state.detach().cpu().numpy()
             next_state = next_state.detach().cpu().numpy()

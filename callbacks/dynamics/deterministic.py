@@ -282,12 +282,12 @@ class DeterministicEnsembleDynamicsModel:
             predictions = predictions_tensor.detach().cpu().numpy()
             self.ensemble_model.train()
 
-            predictions_var = []
-            for _ in range(100):
-                prediction_var_tensor = self.ensemble_model(inputs_norm_tensor)
-                predictions_var += [prediction_var_tensor]
+            # predictions_var = []
+            # for _ in range(100):
+            #     prediction_var_tensor = self.ensemble_model(inputs_norm_tensor)
+            #     predictions_var += [prediction_var_tensor]
 
-        return predictions, torch.std(torch.stack(predictions_var), dim=0).detach().cpu().numpy()
+        return predictions, -1  # torch.std(torch.stack(predictions_var), dim=0).detach().cpu().numpy()
 
 
 def init_weights(layer: Union[nn.Linear, EnsembleLinear, DeterministicEnsembleModel]) -> None:

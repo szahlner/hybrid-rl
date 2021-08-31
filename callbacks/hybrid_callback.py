@@ -145,10 +145,18 @@ class HyBridCallback(BaseCallback):
             assert dones.shape[-1] == 1, "Dones must be of length 1"
 
             self.replay_buffer_demo = ReplayBuffer(
-                n_state=self.model.observation_space['observation'],
+                n_state=self.model.observation_space.shape[0],
                 n_action=n_action,
-                size=len(states),
+                size=len(states) + 1,  # dirty fix
                 use_cuda=self.use_cuda
+            )
+
+            self.replay_buffer_demo.add(
+                state=states,
+                action=actions,
+                reward=rewards,
+                mask=dones,
+                next_state=next_states,
             )
 
         # Setup buffers

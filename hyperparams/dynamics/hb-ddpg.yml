@@ -38,3 +38,5 @@ PandaPush-v1:
 ShadowHandReach-v1:
     <<: *pybullet-defaults
     n_reward: 1
+    train_freq_policy: 50
+    gradient_steps_policy: 40

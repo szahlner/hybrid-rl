@@ -484,11 +484,17 @@ class HyBridCallback(BaseCallback):
                 predictions_tensor_list += [prediction_tensor]
 
         predictions_mean = torch.mean(torch.stack(predictions_tensor_list), dim=0).detach().cpu().numpy()
-        predictions_var = torch.std(torch.stack(predictions_tensor_list), dim=0).detach().cpu().numpy()
+        predictions_std = torch.std(torch.stack(predictions_tensor_list), dim=0).detach().cpu().numpy()
+        predictions_median = torch.median(torch.stack(predictions_tensor_list), dim=0).detach().cpu().numpy()
+        predictions_q1 = torch.quantile(torch.stack(predictions_tensor_list), q=0.25, dim=0).detach().cpu().numpy()
+        predictions_q3 = torch.quantile(torch.stack(predictions_tensor_list), q=0.75, dim=0).detach().cpu().numpy()
 
         x = np.expand_dims(np.array([self.num_timesteps]), axis=0)
         predictions_mean = np.expand_dims(predictions_mean, axis=0)
-        predictions_var = np.expand_dims(predictions_var, axis=0)
+        predictions_std = np.expand_dims(predictions_std, axis=0)
+        predictions_median = np.expand_dims(predictions_median, axis=0)
+        predictions_q1 = np.expand_dims(predictions_q1, axis=0)
+        predictions_q3 = np.expand_dims(predictions_q3, axis=0)
         ground_truth = np.expand_dims(ground_truth, axis=0)
 
         confidence_log = os.path.join(self.log_path, "dynamics.npz")
@@ -497,14 +503,20 @@ class HyBridCallback(BaseCallback):
 
             x = np.concatenate([data["x"], x], axis=0)
             predictions_mean = np.concatenate([data["predictions_mean"], predictions_mean], axis=0)
-            predictions_var = np.concatenate([data["predictions_var"], predictions_var], axis=0)
+            predictions_std = np.concatenate([data["predictions_std"], predictions_std], axis=0)
+            predictions_median = np.concatenate([data["predictions_median"], predictions_std], axis=0)
+            predictions_q1 = np.concatenate([data["predictions_q1"], predictions_std], axis=0)
+            predictions_q3 = np.concatenate([data["predictions_q3"], predictions_std], axis=0)
             ground_truth = np.concatenate([data["ground_truth"], ground_truth], axis=0)
 
         np.savez_compressed(
             file=confidence_log,
             x=x,
             predictions_mean=predictions_mean,
-            predictions_var=predictions_var,
+            predictions_std=predictions_std,
+            predictions_median=predictions_median,
+            predictions_q1=predictions_q1,
+            predictions_q3=predictions_q3,
             ground_truth=ground_truth,
         )
 

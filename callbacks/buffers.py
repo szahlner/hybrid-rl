@@ -1,7 +1,15 @@
+import warnings
+
 import torch
 import numpy as np
 
 from typing import Any, List, Optional, Tuple
+
+try:
+    # Check replay buffer fits in memory, if possible
+    import psutil
+except ImportError:
+    psutil = None
 
 
 class ReplayBuffer:
@@ -12,28 +20,62 @@ class ReplayBuffer:
         size: int,
         n_goal: Optional[int] = None,
         use_cuda: bool = False,
+        verbose: int = 2,
     ) -> None:
         self.size = size
         self.n_state = n_state
         self.n_action = n_action
         self.n_goal = n_goal
         self.use_cuda = use_cuda
+        self.verbose = verbose
 
         # Env
         self.buffer = {
-            "state": np.empty(shape=(size, n_state)),
-            "action": np.empty(shape=(size, n_action)),
-            "reward": np.empty(shape=(size, 1)),
-            "mask": np.empty(shape=(size, 1)),
-            "next_state": np.empty(shape=(size, n_state)),
+            "state": np.empty(shape=(size, n_state), dtype=np.float32),
+            "action": np.empty(shape=(size, n_action), dtype=np.float32),
+            "reward": np.empty(shape=(size, 1), dtype=np.float32),
+            "mask": np.empty(shape=(size, 1), dtype=np.float32),
+            "next_state": np.empty(shape=(size, n_state), dtype=np.float32),
         }
 
         if n_goal is not None:
             # GoalEnv
-            self.buffer["achieved_goal"] = np.empty(shape=(size, n_goal))
-            self.buffer["desired_goal"] = np.empty(shape=(size, n_goal))
-            self.buffer["next_achieved_goal"] = np.empty(shape=(size, n_goal))
-            self.buffer["next_desired_goal"] = np.empty(shape=(size, n_goal))
+            self.buffer["achieved_goal"] = np.empty(
+                shape=(size, n_goal), dtype=np.float32
+            )
+            self.buffer["desired_goal"] = np.empty(
+                shape=(size, n_goal), dtype=np.float32
+            )
+            self.buffer["next_achieved_goal"] = np.empty(
+                shape=(size, n_goal), dtype=np.float32
+            )
+            self.buffer["next_desired_goal"] = np.empty(
+                shape=(size, n_goal), dtype=np.float32
+            )
+
+        # Check that the replay buffer can fit into the memory
+        # stable baselines 3
+        if psutil is not None:
+            memory_available = psutil.virtual_memory().available
+            total_memory_usage = 0
+
+            for key in self.buffer.keys():
+                total_memory_usage += self.buffer[key].nbytes
+
+            # Convert to GB
+            total_memory_usage /= 1e9
+
+            if self.verbose > 0:
+                print("Memory usage replay buffer: {}GB".format(total_memory_usage))
+
+            if total_memory_usage > memory_available:
+                # Convert to GB
+                memory_available /= 1e9
+                warnings.warn(
+                    "This system does not have enough memory to store the complete replay buffer {}GB > {}GB".format(
+                        total_memory_usage, memory_available
+                    )
+                )
 
         self.count = 0
 
@@ -53,28 +95,28 @@ class ReplayBuffer:
 
         if self.count + n_additional < self.size:
             # Env
-            self.buffer["state"][self.count : self.count + n_additional] = state
-            self.buffer["action"][self.count : self.count + n_additional] = action
-            self.buffer["reward"][self.count : self.count + n_additional] = reward
-            self.buffer["mask"][self.count : self.count + n_additional] = mask
+            self.buffer["state"][self.count : self.count + n_additional] = state.copy()
+            self.buffer["action"][self.count : self.count + n_additional] = action.copy()
+            self.buffer["reward"][self.count : self.count + n_additional] = reward.copy()
+            self.buffer["mask"][self.count : self.count + n_additional] = mask.copy()
             self.buffer["next_state"][
                 self.count : self.count + n_additional
-            ] = next_state
+            ] = next_state.copy()
 
             if self.n_goal is not None:
                 # GoalEnv
                 self.buffer["achieved_goal"][
                     self.count : self.count + n_additional
-                ] = achieved_goal
+                ] = achieved_goal.copy()
                 self.buffer["desired_goal"][
                     self.count : self.count + n_additional
-                ] = desired_goal
+                ] = desired_goal.copy()
                 self.buffer["next_achieved_goal"][
                     self.count : self.count + n_additional
-                ] = next_achieved_goal
+                ] = next_achieved_goal.copy()
                 self.buffer["next_desired_goal"][
                     self.count : self.count + n_additional
-                ] = next_desired_goal
+                ] = next_desired_goal.copy()
 
             self.count += n_additional
         else:
@@ -110,37 +152,35 @@ class ReplayBuffer:
             self.count = self.size - n_roll
 
             # Env
-            self.buffer["state"][self.count : self.count + n_additional] = state
-            self.buffer["action"][self.count : self.count + n_additional] = action
-            self.buffer["reward"][self.count : self.count + n_additional] = reward
-            self.buffer["mask"][self.count : self.count + n_additional] = mask
+            self.buffer["state"][self.count : self.count + n_additional] = state.copy()
+            self.buffer["action"][self.count : self.count + n_additional] = action.copy()
+            self.buffer["reward"][self.count : self.count + n_additional] = reward.copy()
+            self.buffer["mask"][self.count : self.count + n_additional] = mask.copy()
             self.buffer["next_state"][
                 self.count : self.count + n_additional
-            ] = next_state
+            ] = next_state.copy()
 
             if self.n_goal is not None:
                 # GoalEnv
                 self.buffer["achieved_goal"][
                     self.count : self.count + n_additional
-                ] = achieved_goal
+                ] = achieved_goal.copy()
                 self.buffer["desired_goal"][
                     self.count : self.count + n_additional
-                ] = desired_goal
+                ] = desired_goal.copy()
                 self.buffer["next_achieved_goal"][
                     self.count : self.count + n_additional
-                ] = next_achieved_goal
+                ] = next_achieved_goal.copy()
                 self.buffer["next_desired_goal"][
                     self.count : self.count + n_additional
-                ] = next_desired_goal
+                ] = next_desired_goal.copy()
 
             self.count = self.size
 
     def __len__(self) -> int:
         return self.count
 
-    def sample(
-        self, batch_size: int
-    ) -> Any:
+    def sample(self, batch_size: int) -> Any:
         if self.count < batch_size:
             batch_idx = np.random.choice(self.count, self.count, replace=False)
         else:
@@ -205,19 +245,19 @@ class ReplayBuffer:
     def clear(self) -> None:
         # Env
         self.buffer = {
-            "state": np.empty(shape=(self.size, self.n_state)),
-            "action": np.empty(shape=(self.size, self.n_action)),
-            "reward": np.empty(shape=(self.size, 1)),
-            "mask": np.empty(shape=(self.size, 1)),
-            "next_state": np.empty(shape=(self.size, self.n_state)),
+            "state": np.empty(shape=(self.size, self.n_state), dtype=np.float32),
+            "action": np.empty(shape=(self.size, self.n_action), dtype=np.float32),
+            "reward": np.empty(shape=(self.size, 1), dtype=np.float32),
+            "mask": np.empty(shape=(self.size, 1), dtype=np.float32),
+            "next_state": np.empty(shape=(self.size, self.n_state), dtype=np.float32),
         }
 
         if self.n_goal is not None:
             # GoalEnv
-            self.buffer["achieved_goal"] = np.empty(shape=(self.size, self.n_goal))
-            self.buffer["desired_goal"] = np.empty(shape=(self.size, self.n_goal))
-            self.buffer["next_achieved_goal"] = np.empty(shape=(self.size, self.n_goal))
-            self.buffer["next_desired_goal"] = np.empty(shape=(self.size, self.n_goal))
+            self.buffer["achieved_goal"] = np.empty(shape=(self.size, self.n_goal), dtype=np.float32)
+            self.buffer["desired_goal"] = np.empty(shape=(self.size, self.n_goal), dtype=np.float32)
+            self.buffer["next_achieved_goal"] = np.empty(shape=(self.size, self.n_goal), dtype=np.float32)
+            self.buffer["next_desired_goal"] = np.empty(shape=(self.size, self.n_goal), dtype=np.float32)
 
         self.count = 0
 

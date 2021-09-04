@@ -163,6 +163,7 @@ tests
 enjoy.py
 requirements.txt
 train.py
+new*
 
 # rl-baselines3-zoo-master add
 !scripts

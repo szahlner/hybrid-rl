@@ -485,7 +485,7 @@ class HyBridCallback(BaseCallback):
 
         predictions_mean = torch.mean(torch.stack(predictions_tensor_list), dim=0).detach().cpu().numpy()
         predictions_std = torch.std(torch.stack(predictions_tensor_list), dim=0).detach().cpu().numpy()
-        predictions_median = torch.median(torch.stack(predictions_tensor_list), dim=0).detach().cpu().numpy()
+        predictions_median = torch.quantile(torch.stack(predictions_tensor_list), q=0.5, dim=0).detach().cpu().numpy()
         predictions_q1 = torch.quantile(torch.stack(predictions_tensor_list), q=0.25, dim=0).detach().cpu().numpy()
         predictions_q3 = torch.quantile(torch.stack(predictions_tensor_list), q=0.75, dim=0).detach().cpu().numpy()
 

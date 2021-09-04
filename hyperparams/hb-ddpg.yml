@@ -18,12 +18,13 @@ HalfCheetahBulletEnv-v0: &pybullet-defaults
 
 AntBulletEnv-v0:
     <<: *pybullet-defaults
+    learning_rate: !!float 7e-4
+    policy_kwargs: "dict(net_arch=[400, 300])"
     callback:
-        - callbacks.hybrid_callback.HyBridCallback:
-            log_path: 'logs'
+        - callbacks.hybrid_callback_2.HyBridCallback:
+            log_path: 'logs-debug'
             algo_prefix: 'hb-'
-            test_confidence_every: 10000
-            recorded_buffer: 'logs/hb-ddpg/AntBulletEnv-v0_4/recorded_buffer.npz'
+            test_confidence_every: 5000
 
 PandaPush-v1: &her-defaults
     env_wrapper: sb3_contrib.common.wrappers.TimeFeatureWrapper
@@ -65,7 +66,7 @@ PandaStack-v1:
     <<: *her-defaults
 
 ShadowHandReach-v1:
-    env_wrapper: callbacks.wrapper.FlattenObservation
+    #env_wrapper: callbacks.wrapper.FlattenObservation
     n_timesteps: !!float 3e6
     policy: 'MlpPolicy'
     batch_size: 256
@@ -79,10 +80,10 @@ ShadowHandReach-v1:
     train_freq: 1
     learning_rate: !!float 1e-3
     policy_kwargs: "dict(net_arch=[64, 64])"
-    #callback:
-    #    - callbacks.hybrid_callback.HyBridCallback:
-    #        log_path: 'logs'
-    #        algo_prefix: 'hb-'
+    callback:
+        - callbacks.hybrid_callback_2.HyBridCallback:
+            log_path: 'newlogs2'
+            algo_prefix: 'hb-'
     #        test_confidence_every: 10000
     #replay_buffer_class: HerReplayBuffer
     #replay_buffer_kwargs: "dict(

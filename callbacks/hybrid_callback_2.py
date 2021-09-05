@@ -504,9 +504,9 @@ class HyBridCallback(BaseCallback):
             x = np.concatenate([data["x"], x], axis=0)
             predictions_mean = np.concatenate([data["predictions_mean"], predictions_mean], axis=0)
             predictions_std = np.concatenate([data["predictions_std"], predictions_std], axis=0)
-            predictions_median = np.concatenate([data["predictions_median"], predictions_std], axis=0)
-            predictions_q1 = np.concatenate([data["predictions_q1"], predictions_std], axis=0)
-            predictions_q3 = np.concatenate([data["predictions_q3"], predictions_std], axis=0)
+            predictions_median = np.concatenate([data["predictions_median"], predictions_median], axis=0)
+            predictions_q1 = np.concatenate([data["predictions_q1"], predictions_q1], axis=0)
+            predictions_q3 = np.concatenate([data["predictions_q3"], predictions_q3], axis=0)
             ground_truth = np.concatenate([data["ground_truth"], ground_truth], axis=0)
 
         np.savez_compressed(

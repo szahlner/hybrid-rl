@@ -210,7 +210,7 @@ if __name__ == "__main__":
                 # Rollout unreal env
                 obs, _, _, _, _ = replay_buffer.sample(100000)
                 obs = obs.detach().cpu().numpy()
-                for n in range(env._max_episode_steps):
+                for n in range(5):  # env._max_episode_steps):
                     action = policy.select_action_low_memory(obs)
                     # action = policy.actor(torch.FloatTensor(obs).to(device)).detach().cpu().numpy()
                     action += np.random.normal(0, max_action * args.expl_noise, size=action.shape)

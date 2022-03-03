@@ -189,7 +189,7 @@ class EnsembleDDPG(object):
         unreal_action = torch.tensor(unreal_action, dtype=torch.float32, device=device)
         unreal_next_state = torch.tensor(unreal_next_state, dtype=torch.float32, device=device)
         unreal_reward = torch.tensor(unreal_reward, dtype=torch.float32, device=device)
-        unreal_not_done = torch.zeros_like(unreal_reward, dtype=bool, device=device)
+        unreal_not_done = torch.ones_like(unreal_reward, dtype=bool, device=device)
 
         # for param in self.actor_optimizer.param_groups:
         #    param['lr'] = self.actor_lr * unreal_confidence

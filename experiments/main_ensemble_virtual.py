@@ -77,14 +77,14 @@ if __name__ == "__main__":
     logger = EpochLogger(**logger_kwargs)
     logger.save_config(args)
 
-    if not os.path.exists("./results"):
-        os.makedirs("./results")
+    if not os.path.exists("./../results"):
+        os.makedirs("./../results")
 
-    if not os.path.exists("./logs"):
-        os.makedirs("./logs")
+    if not os.path.exists("./../logs"):
+        os.makedirs("./../logs")
 
-    if args.save_model and not os.path.exists("./models"):
-        os.makedirs("./models")
+    if args.save_model and not os.path.exists("./../models"):
+        os.makedirs("./../models")
 
     env = gym.make(args.env)
 
@@ -114,7 +114,7 @@ if __name__ == "__main__":
 
     if args.load_model != "":
         policy_file = file_name if args.load_model == "default" else args.load_model
-        policy.load(f"./models/{policy_file}")
+        policy.load(f"./../models/{policy_file}")
 
     replay_buffer = utils.ReplayBuffer(state_dim, action_dim)
 
@@ -279,9 +279,9 @@ if __name__ == "__main__":
         # Evaluate episode
         if (t + 1) % args.eval_freq == 0:
             evaluations.append(eval_policy(policy, args.env, args.seed))
-            np.save(f"./results/{file_name}", evaluations)
+            np.save(f"./../results/{file_name}", evaluations)
             if args.save_model:
-                policy.save(f"./models/{file_name}")
+                policy.save(f"./../models/{file_name}")
 
             logger.log_tabular("Timesteps", t)
             logger.log_tabular("Time", time.time() - start_time)

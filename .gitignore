@@ -153,11 +153,11 @@ Leap.py
 # Temporary files
 *~
 
-# Python virtualenv 
+# Python virtualenv
 venv
 
 # rl-baselines3-zoo-master ignore
-log*
+logs
 rl-trained-agents
 tests
 enjoy.py

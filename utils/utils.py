@@ -28,32 +28,36 @@ class ReplayBuffer(object):
         self.ptr = (self.ptr + 1) % self.max_size
         self.size = min(self.size + 1, self.max_size)
 
-    def sample(self, batch_size, confidence=False):
-        ind = np.random.randint(0, self.size, size=batch_size)
+    def sample(self, batch_size, idx=None, confidence=False):
+        if idx is None:
+            idx = np.random.randint(0, self.size, size=batch_size)
 
         if confidence:
-            conf = self._get_confidence(ind)
+            conf = self._get_confidence(idx)
             return (
-                torch.FloatTensor(self.state[ind]).to(self.device),
-                torch.FloatTensor(self.action[ind]).to(self.device),
-                torch.FloatTensor(self.next_state[ind]).to(self.device),
-                torch.FloatTensor(self.reward[ind]).to(self.device),
-                torch.FloatTensor(self.not_done[ind]).to(self.device),
+                torch.tensor(self.state[idx], dtype=torch.float32, device=self.device),
+                torch.tensor(self.action[idx], dtype=torch.float32, device=self.device),
+                torch.tensor(self.next_state[idx], dtype=torch.float32, device=self.device),
+                torch.tensor(self.reward[idx], dtype=torch.float32, device=self.device),
+                torch.tensor(self.not_done[idx], dtype=torch.float32, device=self.device),
                 conf,
             )
         else:
             return (
-                torch.FloatTensor(self.state[ind]).to(self.device),
-                torch.FloatTensor(self.action[ind]).to(self.device),
-                torch.FloatTensor(self.next_state[ind]).to(self.device),
-                torch.FloatTensor(self.reward[ind]).to(self.device),
-                torch.FloatTensor(self.not_done[ind]).to(self.device),
+                torch.tensor(self.state[idx], dtype=torch.float32, device=self.device),
+                torch.tensor(self.action[idx], dtype=torch.float32, device=self.device),
+                torch.tensor(self.next_state[idx], dtype=torch.float32, device=self.device),
+                torch.tensor(self.reward[idx], dtype=torch.float32, device=self.device),
+                torch.tensor(self.not_done[idx], dtype=torch.float32, device=self.device),
             )
 
     def sample_numpy_state(self, idx):
         return self.state[idx]
 
-    def sample_numpy(self, idx, confidence=False):
+    def sample_numpy(self, batch_size, idx=None, confidence=False):
+        if idx is None:
+            idx = np.random.randint(0, self.size, size=batch_size)
+
         if confidence:
             conf = self._get_confidence(idx)
 

@@ -158,9 +158,4 @@ venv
 
 # rl-baselines3-zoo-master ignore
 logs
-rl-trained-agents
-tests
-enjoy.py
-requirements.txt
-train.py
-new*
+results

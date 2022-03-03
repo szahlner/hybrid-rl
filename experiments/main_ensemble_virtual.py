@@ -173,67 +173,68 @@ if __name__ == "__main__":
         if t >= args.start_timesteps:
             if t % 250 == 0:
                 # Train unreal env
-                idxs = np.arange(replay_buffer.size)
-                obs, action, next_obs, reward, _ = replay_buffer.sample_numpy(idxs)
+                idx = np.arange(replay_buffer.size)
+                obs, action, next_obs, reward, _ = replay_buffer.sample_numpy(batch_size=len(idx), idx=idx)
                 training_inputs = obs
                 training_labels = np.concatenate([next_obs, reward], axis=-1)
                 unreal_env.train(training_inputs, action, training_labels)
 
-                # Stats from real replay buffer
-                replay_buffer_state_mean = np.mean(replay_buffer.state[:replay_buffer.size], axis=0)
-                replay_buffer_state_std = np.std(replay_buffer.state[:replay_buffer.size], axis=0)
+                if False:
+                    # Stats from real replay buffer
+                    replay_buffer_state_mean = np.mean(replay_buffer.state[:replay_buffer.size], axis=0)
+                    replay_buffer_state_std = np.std(replay_buffer.state[:replay_buffer.size], axis=0)
 
-                # Update unreal replay buffer
-                if unreal_replay_buffer.size > 0:
-                    idxs = np.arange(unreal_replay_buffer.size)
-                    obs, action, _, _, _ = unreal_replay_buffer.sample_numpy(idxs)
-                    next_obs, confidence = unreal_env.predict(obs, action)
-                    # Split observations
-                    reward = next_obs[:, state_dim:]
-                    next_obs = next_obs[:, :state_dim]
-                    # Handle outliers
-                    inliers = reject_outliers(next_obs, replay_buffer_state_mean, replay_buffer_state_std, m=1)
-                    if inliers.sum() == 0:
-                        break
-                    # Select inlier observations
-                    obs = obs[inliers]
-                    action = action[inliers]
-                    next_obs = next_obs[inliers]
-                    confidence = confidence[inliers]
-                    reward = reward[inliers]
-                    # Clear buffer
-                    unreal_replay_buffer.clear()
-                    # Append rollout
-                    for k in range(len(obs)):
-                        unreal_replay_buffer.add(obs[k], action[k], next_obs[k], reward[k], False, confidence[k])
+                    # Update unreal replay buffer
+                    if unreal_replay_buffer.size > 0:
+                        idxs = np.arange(unreal_replay_buffer.size)
+                        obs, action, _, _, _ = unreal_replay_buffer.sample_numpy(idxs)
+                        next_obs, confidence = unreal_env.predict(obs, action)
+                        # Split observations
+                        reward = next_obs[:, state_dim:]
+                        next_obs = next_obs[:, :state_dim]
+                        # Handle outliers
+                        inliers = reject_outliers(next_obs, replay_buffer_state_mean, replay_buffer_state_std, m=1)
+                        if inliers.sum() == 0:
+                            break
+                        # Select inlier observations
+                        obs = obs[inliers]
+                        action = action[inliers]
+                        next_obs = next_obs[inliers]
+                        confidence = confidence[inliers]
+                        reward = reward[inliers]
+                        # Clear buffer
+                        unreal_replay_buffer.clear()
+                        # Append rollout
+                        for k in range(len(obs)):
+                            unreal_replay_buffer.add(obs[k], action[k], next_obs[k], reward[k], False, confidence[k])
 
-                # Rollout unreal env
-                obs, _, _, _, _ = replay_buffer.sample(100000)
-                obs = obs.detach().cpu().numpy()
-                for n in range(5):  # env._max_episode_steps):
-                    action = policy.select_action_low_memory(obs)
-                    # action = policy.actor(torch.FloatTensor(obs).to(device)).detach().cpu().numpy()
-                    action += np.random.normal(0, max_action * args.expl_noise, size=action.shape)
-                    action = action.clip(-max_action, max_action)
-                    next_obs, confidence = unreal_env.predict(obs, action)
-                    # Split observations
-                    reward = next_obs[:, state_dim:]
-                    next_obs = next_obs[:, :state_dim]
-                    # Handle outliers
-                    inliers = reject_outliers(next_obs, replay_buffer_state_mean, replay_buffer_state_std, m=1)
-                    if inliers.sum() == 0:
-                        break
-                    # Select inlier observations
-                    obs = obs[inliers]
-                    action = action[inliers]
-                    next_obs = next_obs[inliers]
-                    confidence = confidence[inliers]
-                    reward = reward[inliers]
-                    # Append rollout
-                    for k in range(len(obs)):
-                        unreal_replay_buffer.add(obs[k], action[k], next_obs[k], reward[k], False, confidence[k])
-                    # Re-assign observations
-                    obs = next_obs
+                    # Rollout unreal env
+                    obs, _, _, _, _ = replay_buffer.sample(100000)
+                    obs = obs.detach().cpu().numpy()
+                    for n in range(5):  # env._max_episode_steps):
+                        action = policy.select_action_low_memory(obs)
+                        # action = policy.actor(torch.FloatTensor(obs).to(device)).detach().cpu().numpy()
+                        action += np.random.normal(0, max_action * args.expl_noise, size=action.shape)
+                        action = action.clip(-max_action, max_action)
+                        next_obs, confidence = unreal_env.predict(obs, action)
+                        # Split observations
+                        reward = next_obs[:, state_dim:]
+                        next_obs = next_obs[:, :state_dim]
+                        # Handle outliers
+                        inliers = reject_outliers(next_obs, replay_buffer_state_mean, replay_buffer_state_std, m=1)
+                        if inliers.sum() == 0:
+                            break
+                        # Select inlier observations
+                        obs = obs[inliers]
+                        action = action[inliers]
+                        next_obs = next_obs[inliers]
+                        confidence = confidence[inliers]
+                        reward = reward[inliers]
+                        # Append rollout
+                        for k in range(len(obs)):
+                            unreal_replay_buffer.add(obs[k], action[k], next_obs[k], reward[k], False, confidence[k])
+                        # Re-assign observations
+                        obs = next_obs
 
                 logger.store(
                     UnrealBufferSize=unreal_replay_buffer.size,
@@ -242,13 +243,13 @@ if __name__ == "__main__":
             actor_loss, critic_loss = 0, 0
             for n in range(args.update_to_data_ratio):
                 # real_ratio = 1.0 / args.update_to_data_ratio
-                real_ratio_ = 0.5  # real_ratio[t]
-                batch_size = int(args.batch_size * real_ratio_)
+                current_real_ratio = 0.5  # real_ratio[t]
+                batch_size = int(args.batch_size * current_real_ratio)
 
                 logger.store(
                     RealBatchSize=batch_size,
                     UnrealBatchSize=args.batch_size - batch_size,
-                    RealRatio=real_ratio_,
+                    RealRatio=current_real_ratio,
                 )
 
                 actor_loss, critic_loss = policy.train_virtual(
@@ -256,6 +257,7 @@ if __name__ == "__main__":
                     unreal_replay_buffer=unreal_replay_buffer,
                     batch_size_real=batch_size,
                     batch_size_unreal=args.batch_size - batch_size,
+                    unreal_env=unreal_env,
                 )
             logger.store(
                 ActorLoss=actor_loss,

@@ -7,6 +7,7 @@ import torch.nn.functional as F
 from unreal_env.env2 import init_weights, EnsembleFC
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+torch.set_default_tensor_type(torch.FloatTensor)
 
 
 # Re-tuned version of Deep Deterministic Policy Gradients (DDPG)
@@ -116,15 +117,16 @@ class EnsembleDDPG(object):
         self.tau = tau
 
         self.action_dim = action_dim
+        self.state_dim = state_dim
 
     def select_action(self, state):
-        state = torch.FloatTensor(state.reshape(1, -1)).to(device)
+        state = torch.tensor(state.reshape(1, -1), dtype=torch.float32, device=device)
         return self.actor(state).cpu().data.numpy().flatten()
 
     def select_action_low_memory(self, state, batch_chunk_size=1024):
         action = np.empty((len(state), self.action_dim))
         for start_pos in range(0, len(state), batch_chunk_size):
-            obs = torch.FloatTensor(state[start_pos : start_pos + batch_chunk_size]).to(device)
+            obs = torch.tensor(state[start_pos : start_pos + batch_chunk_size], dtype=torch.float32, device=device)
             action[start_pos : start_pos + batch_chunk_size] = self.actor(obs).detach().cpu().numpy()
         return action
 
@@ -168,12 +170,26 @@ class EnsembleDDPG(object):
         for param, target_param in zip(self.critic.parameters(), self.critic_target.parameters()):
             target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
 
-    def train_virtual(self, replay_buffer, unreal_replay_buffer, batch_size_real=256, batch_size_unreal=256):
+    def train_virtual(self, replay_buffer, unreal_replay_buffer, batch_size_real=256, batch_size_unreal=256, unreal_env=None):
         self.total_timesteps += 1
 
         # Sample replay buffer
         state, action, next_state, reward, not_done = replay_buffer.sample(batch_size_real)
-        unreal_state, unreal_action, unreal_next_state, unreal_reward, unreal_not_done, unreal_confidence = unreal_replay_buffer.sample(batch_size_unreal, confidence=True)
+        unreal_state, _, _, _, _ = replay_buffer.sample_numpy(batch_size_unreal)
+
+        unreal_action = self.select_action_low_memory(unreal_state)
+        unreal_action += np.random.normal(0, 1 * 0.1, size=unreal_action.shape)
+        unreal_action = unreal_action.clip(-1, 1)
+        unreal_next_state, _ = unreal_env.predict(unreal_state, unreal_action)
+        # Split observations
+        unreal_reward = unreal_next_state[:, self.state_dim:]
+        unreal_next_state = unreal_next_state[:, :self.state_dim]
+
+        unreal_state = torch.tensor(unreal_state, dtype=torch.float32, device=device)
+        unreal_action = torch.tensor(unreal_action, dtype=torch.float32, device=device)
+        unreal_next_state = torch.tensor(unreal_next_state, dtype=torch.float32, device=device)
+        unreal_reward = torch.tensor(unreal_reward, dtype=torch.float32, device=device)
+        unreal_not_done = torch.zeros_like(unreal_reward, dtype=bool, device=device)
 
         # for param in self.actor_optimizer.param_groups:
         #    param['lr'] = self.actor_lr * unreal_confidence
@@ -204,7 +220,7 @@ class EnsembleDDPG(object):
         critic_loss.backward()
         self.critic_optimizer.step()
 
-        actor_loss = torch.FloatTensor(np.array([0])).to(device)
+        actor_loss = torch.zeros(1, dtype=torch.float32, device=device)
 
         # Delayed policy updates
         if self.total_timesteps % self.policy_freq == 0:

@@ -246,29 +246,32 @@ if __name__ == "__main__":
                     UnrealBufferSize=unreal_replay_buffer.size,
                 )
 
-            actor_loss, critic_loss = 0, 0
+            # actor_loss, critic_loss = 0, 0
             for n in range(args.update_to_data_ratio):
-                # real_ratio = 1.0 / args.update_to_data_ratio
-                current_real_ratio = 0.5  # real_ratio[t]
-                batch_size = int(args.batch_size * current_real_ratio)
+                critic_loss = policy.train_critic_virtual(replay_buffer, 256, 0.5, unreal_env)
+                logger.store(CriticLoss=critic_loss)
 
-                logger.store(
-                    RealBatchSize=batch_size,
-                    UnrealBatchSize=args.batch_size - batch_size,
-                    RealRatio=current_real_ratio,
-                )
+                if False:
+                    # real_ratio = 1.0 / args.update_to_data_ratio
+                    current_real_ratio = 0.5  # real_ratio[t]
+                    batch_size = int(args.batch_size * current_real_ratio)
 
-                actor_loss, critic_loss = policy.train_virtual(
-                    replay_buffer=replay_buffer,
-                    unreal_replay_buffer=unreal_replay_buffer,
-                    batch_size_real=batch_size,
-                    batch_size_unreal=args.batch_size - batch_size,
-                    unreal_env=unreal_env,
-                )
-            logger.store(
-                ActorLoss=actor_loss,
-                CriticLoss=critic_loss,
-            )
+                    logger.store(
+                        RealBatchSize=batch_size,
+                        UnrealBatchSize=args.batch_size - batch_size,
+                        RealRatio=current_real_ratio,
+                    )
+
+                    actor_loss, critic_loss = policy.train_virtual(
+                        replay_buffer=replay_buffer,
+                        unreal_replay_buffer=unreal_replay_buffer,
+                        batch_size_real=batch_size,
+                        batch_size_unreal=args.batch_size - batch_size,
+                        unreal_env=unreal_env,
+                    )
+
+            actor_loss = policy.train_actor(replay_buffer, 256)
+            logger.store(ActorLoss=actor_loss)
 
         if done:
             logger.store(

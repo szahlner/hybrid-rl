@@ -283,6 +283,14 @@ class EnsembleDynamicsModel():
             var = torch.mean(ensemble_var, dim=0) + torch.mean(torch.square(ensemble_mean - mean[None, :, :]), dim=0)
             return mean, var
 
+    def save(self, filename):
+        torch.save(self.ensemble_model.state_dict(), filename + "_unreal_ensemble")
+        torch.save(self.ensemble_model.optimizer.state_dict(), filename + "_unreal_ensemble_optimizer")
+
+    def load(self, filename):
+        self.ensemble_model.load_state_dict(torch.load(filename + "_unreal_ensemble"))
+        self.ensemble_model.optimizer.load_state_dict(torch.load(filename + "_unreal_ensemble_optimizer"))
+
 
 class Swish(nn.Module):
     def __init__(self):

@@ -4,6 +4,7 @@ import gym
 import argparse
 import os
 import time
+import datetime
 
 import utils.utils as utils
 import policy.EnsembleDDPG as EDDPG
@@ -69,22 +70,27 @@ if __name__ == "__main__":
     print(f"Policy: {args.policy}, Env: {args.env}, Seed: {args.seed}")
     print("---------------------------------------")
 
+    log_dir = "./../logs"
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir)
+    log_dir = os.path.join(
+        log_dir,
+        f"{args.policy}_{datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%dT%H-%M-%S')}"
+    )
+
     logger_kwargs = {
-        "output_dir": "./../logs/EDDPG",
+        "output_dir": log_dir,
         "output_fname": f"{file_name}.txt",
         "exp_name": "virtual",
     }
     logger = EpochLogger(**logger_kwargs)
     logger.save_config(args)
 
-    if not os.path.exists("./../results"):
-        os.makedirs("./../results")
+    if not os.path.exists(os.path.join(log_dir, "results")):
+        os.makedirs(os.path.join(log_dir, "results"))
 
-    if not os.path.exists("./../logs"):
-        os.makedirs("./../logs")
-
-    if args.save_model and not os.path.exists("./../models"):
-        os.makedirs("./../models")
+    if args.save_model and not os.path.exists(os.path.join(log_dir, "models")):
+        os.makedirs(os.path.join(log_dir, "models"))
 
     env = gym.make(args.env)
 
@@ -132,7 +138,7 @@ if __name__ == "__main__":
 
     start_time = time.time()
 
-    def prepare_logger(logger):
+    def prepare_logger():
         logger.store(
             UnrealBufferSize=0,
             RealBatchSize=0,
@@ -141,7 +147,7 @@ if __name__ == "__main__":
             ActorLoss=0,
             CriticLoss=0,
         )
-    prepare_logger(logger)
+    prepare_logger()
 
     for t in range(int(args.max_timesteps)):
 
@@ -281,9 +287,11 @@ if __name__ == "__main__":
         # Evaluate episode
         if (t + 1) % args.eval_freq == 0:
             evaluations.append(eval_policy(policy, args.env, args.seed))
-            np.save(f"./../results/{file_name}", evaluations)
+            np.save(os.path.join(log_dir, "results", file_name), evaluations)
+
             if args.save_model:
-                policy.save(f"./../models/{file_name}")
+                policy.save(os.path.join(log_dir, "models", file_name))
+                unreal_env.save(os.path.join(log_dir, "models", file_name))
 
             logger.log_tabular("Timesteps", t)
             logger.log_tabular("Time", time.time() - start_time)

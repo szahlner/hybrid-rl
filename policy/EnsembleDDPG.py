@@ -83,6 +83,7 @@ class EnsembleDDPG(object):
         num_Pi=10,
         num_Pi_min=2,
     ):
+        self.actor_lr = 3e-4
         self.actor = EnsembleActor(
             input_dim=state_dim,
             output_dim=action_dim,
@@ -91,11 +92,10 @@ class EnsembleDDPG(object):
             max_action=max_action,
         ).to(device)
         self.actor_target = copy.deepcopy(self.actor)
-        self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=3e-4)
+        self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=self.actor_lr)
 
-        self.actor_lr = 0.001
         self.total_timesteps = 0
-        self.policy_freq = 2
+        self.policy_freq = 5
 
         self.num_Pi = num_Pi
         self.num_Pi_min = num_Pi_min

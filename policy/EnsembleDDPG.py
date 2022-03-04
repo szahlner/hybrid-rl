@@ -135,18 +135,18 @@ class EnsembleDDPG(object):
         state, action, next_state, reward, not_done = replay_buffer.sample(batch_size)
 
         # Compute the target Q value
-        sample_idxs = np.random.choice(self.num_Q, self.num_Q_min, replace=False)
+        sample_idx = np.random.choice(self.num_Q, self.num_Q_min, replace=False)
         with torch.no_grad():
-            target_Q = self.critic_target(next_state, self.actor_target(next_state))
-            target_Q = target_Q[sample_idxs]
-            target_Q, _ = torch.min(target_Q, dim=0)
-            target_Q = reward + not_done * self.discount * target_Q
+            target_q = self.critic_target(next_state, self.actor_target(next_state))
+            target_q = target_q[sample_idx]
+            target_q, _ = torch.min(target_q, dim=0)
+            target_q = reward + not_done * self.discount * target_q
 
         # Get current Q estimate
-        current_Q = self.critic(state, action)
+        current_q = self.critic(state, action)
 
         # Compute critic loss
-        critic_loss = F.mse_loss(current_Q, target_Q.repeat([self.num_Q, 1, 1])) * self.num_Q
+        critic_loss = F.mse_loss(current_q, target_q.repeat([self.num_Q, 1, 1])) * self.num_Q
 
         # Optimize the critic
         self.critic_optimizer.zero_grad()
@@ -154,9 +154,9 @@ class EnsembleDDPG(object):
         self.critic_optimizer.step()
 
         # Compute actor loss
-        self.critic.requires_grad_(False)
+        # self.critic.requires_grad_(False)
         actor_loss = -self.critic(state, self.actor(state)).mean()
-        self.critic.requires_grad_(True)
+        # self.critic.requires_grad_(True)
 
         # Optimize the actor
         self.actor_optimizer.zero_grad()
@@ -169,6 +169,8 @@ class EnsembleDDPG(object):
 
         for param, target_param in zip(self.critic.parameters(), self.critic_target.parameters()):
             target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
+
+        return actor_loss.item(), critic_loss.item()
 
     def train_critic_virtual(self, replay_buffer, batch_size=256, real_ratio=0.5, unreal_env=None):
         # Sample replay buffer

@@ -248,8 +248,14 @@ if __name__ == "__main__":
 
             # actor_loss, critic_loss = 0, 0
             for n in range(args.update_to_data_ratio):
-                critic_loss = policy.train_critic_virtual(replay_buffer, 256, 1.0 / args.update_to_data_ratio, unreal_env)
+                critic_loss = policy.train_critic_virtual(replay_buffer, 256, 0.0 / args.update_to_data_ratio, unreal_env)
                 logger.store(CriticLoss=critic_loss)
+
+                actor_loss, critic_loss = policy.train(replay_buffer, 256)
+                logger.store(
+                    ActorLoss=actor_loss,
+                    CriticLoss=critic_loss,
+                )
 
                 if False:
                     # real_ratio = 1.0 / args.update_to_data_ratio
@@ -270,10 +276,11 @@ if __name__ == "__main__":
                         unreal_env=unreal_env,
                     )
 
-            actor_loss = policy.train_actor(replay_buffer, 256)
-            logger.store(
-                ActorLoss=actor_loss,
-            )
+            if False:
+                actor_loss = policy.train_actor(replay_buffer, 256)
+                logger.store(
+                    ActorLoss=actor_loss,
+                )
 
         if done:
             logger.store(

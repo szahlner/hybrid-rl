@@ -79,17 +79,17 @@ class EnsembleDDPG(object):
         max_action,
         discount=0.99,
         tau=0.005,
-        num_Q=10,
-        num_Q_min=2,
-        num_Pi=10,
-        num_Pi_min=2,
+        num_q=10,
+        num_q_min=2,
+        num_pi=10,
+        num_pi_min=2,
     ):
         self.actor_lr = 1e-3
         self.actor = EnsembleActor(
             input_dim=state_dim,
             output_dim=action_dim,
             hidden_dim=(256, 256),
-            network_size=num_Pi,
+            network_size=num_pi,
             max_action=max_action,
         ).to(device)
         self.actor_target = copy.deepcopy(self.actor)
@@ -98,20 +98,20 @@ class EnsembleDDPG(object):
         self.total_timesteps = 0
         self.policy_freq = 5
 
-        self.num_Pi = num_Pi
-        self.num_Pi_min = num_Pi_min
+        self.num_pi = num_pi
+        self.num_pi_min = num_pi_min
 
         self.critic = EnsembleCritic(
             input_dim=state_dim+action_dim,
             output_dim=1,
             hidden_dim=(256, 256),
-            network_size=num_Q,
+            network_size=num_q,
         ).to(device)
         self.critic_target = copy.deepcopy(self.critic)
         self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=1e-3)
 
-        self.num_Q = num_Q
-        self.num_Q_min = num_Q_min
+        self.num_q = num_q
+        self.num_q_min = num_q_min
 
         self.discount = discount
         self.tau = tau
@@ -135,7 +135,7 @@ class EnsembleDDPG(object):
         state, action, next_state, reward, not_done = replay_buffer.sample(batch_size)
 
         # Compute the target Q value
-        sample_idx = np.random.choice(self.num_Q, self.num_Q_min, replace=False)
+        sample_idx = np.random.choice(self.num_q, self.num_q_min, replace=False)
         with torch.no_grad():
             target_q = self.critic_target(next_state, self.actor_target(next_state))
             target_q = target_q[sample_idx]
@@ -146,7 +146,7 @@ class EnsembleDDPG(object):
         current_q = self.critic(state, action)
 
         # Compute critic loss
-        critic_loss = F.mse_loss(current_q, target_q.repeat([self.num_Q, 1, 1])) * self.num_Q
+        critic_loss = F.mse_loss(current_q, target_q.repeat([self.num_q, 1, 1])) * self.num_q
 
         # Optimize the critic
         self.critic_optimizer.zero_grad()
@@ -200,7 +200,7 @@ class EnsembleDDPG(object):
         not_done = torch.cat([not_done, unreal_not_done], dim=0)
 
         # Compute the target Q value
-        sample_idx = np.random.choice(self.num_Q, self.num_Q_min, replace=False)
+        sample_idx = np.random.choice(self.num_q, self.num_q_min, replace=False)
         with torch.no_grad():
             target_q = self.critic_target(next_state, self.actor_target(next_state))
             target_q = target_q[sample_idx]
@@ -211,7 +211,7 @@ class EnsembleDDPG(object):
         current_q = self.critic(state, action)
 
         # Compute critic loss
-        critic_loss = F.mse_loss(current_q, target_q.repeat([self.num_Q, 1, 1])) * self.num_Q
+        critic_loss = F.mse_loss(current_q, target_q.repeat([self.num_q, 1, 1])) * self.num_q
 
         # Optimize the critic
         self.critic_optimizer.zero_grad()
@@ -274,7 +274,7 @@ class EnsembleDDPG(object):
         not_done = torch.cat([not_done, unreal_not_done], dim=0)
 
         # Compute the target Q value
-        sample_idxs = np.random.choice(self.num_Q, self.num_Q_min, replace=False)
+        sample_idxs = np.random.choice(self.num_q, self.num_q_min, replace=False)
         with torch.no_grad():
             target_Q = self.critic_target(next_state, self.actor_target(next_state))
             target_Q = target_Q[sample_idxs]
@@ -285,7 +285,7 @@ class EnsembleDDPG(object):
         current_Q = self.critic(state, action)
 
         # Compute critic loss
-        critic_loss = F.mse_loss(current_Q, target_Q.repeat([self.num_Q, 1, 1])) * self.num_Q
+        critic_loss = F.mse_loss(current_Q, target_Q.repeat([self.num_q, 1, 1])) * self.num_q
 
         # Optimize the critic
         self.critic_optimizer.zero_grad()

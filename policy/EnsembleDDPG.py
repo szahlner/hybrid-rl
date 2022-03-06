@@ -83,8 +83,10 @@ class EnsembleDDPG(object):
         num_q_min=2,
         num_pi=10,
         num_pi_min=2,
+        actor_lr=1e-3,
+        critic_lr=1e-3,
     ):
-        self.actor_lr = 1e-3
+        self.actor_lr = actor_lr
         self.actor = EnsembleActor(
             input_dim=state_dim,
             output_dim=action_dim,
@@ -93,7 +95,7 @@ class EnsembleDDPG(object):
             max_action=max_action,
         ).to(device)
         self.actor_target = copy.deepcopy(self.actor)
-        self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=self.actor_lr)
+        self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=actor_lr)
 
         self.total_timesteps = 0
         self.policy_freq = 5
@@ -101,6 +103,7 @@ class EnsembleDDPG(object):
         self.num_pi = num_pi
         self.num_pi_min = num_pi_min
 
+        self.critic_lr = critic_lr
         self.critic = EnsembleCritic(
             input_dim=state_dim+action_dim,
             output_dim=1,
@@ -108,7 +111,7 @@ class EnsembleDDPG(object):
             network_size=num_q,
         ).to(device)
         self.critic_target = copy.deepcopy(self.critic)
-        self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=1e-3)
+        self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=critic_lr)
 
         self.num_q = num_q
         self.num_q_min = num_q_min
@@ -178,10 +181,19 @@ class EnsembleDDPG(object):
         state, action, next_state, reward, not_done = replay_buffer.sample(batch_size_real)
         unreal_state, _, _, _, _ = replay_buffer.sample_numpy(batch_size - batch_size_real)
 
+        # t_max = 125000
+        # max_action = np.concatenate([
+        #     np.linspace(1, 0, int(t_max / 2)),
+        #     np.zeros((t_max - int(t_max / 2))),
+        # ])
+        # min_action = -max_action
+
         unreal_action = self.select_action_low_memory(unreal_state)
         unreal_action += np.random.normal(0, 1 * 0.1, size=unreal_action.shape)
+        # unreal_action += np.random.uniform(max_action[timestep], min_action[timestep], size=unreal_action.shape)
         unreal_action = unreal_action.clip(-1, 1)
-        unreal_next_state, _ = unreal_env.predict(unreal_state, unreal_action)
+        # unreal_action = np.random.uniform(-1, 1, size=(len(unreal_state), self.action_dim))
+        unreal_next_state, confidence = unreal_env.predict(unreal_state, unreal_action)
         # Split observations
         unreal_reward = unreal_next_state[:, self.state_dim:]
         unreal_next_state = unreal_next_state[:, :self.state_dim]
@@ -191,6 +203,11 @@ class EnsembleDDPG(object):
         unreal_next_state = torch.tensor(unreal_next_state, dtype=torch.float32, device=device)
         unreal_reward = torch.tensor(unreal_reward, dtype=torch.float32, device=device)
         unreal_not_done = torch.ones_like(unreal_reward, dtype=torch.bool, device=device)
+
+        # Set learning rate
+        confidence = np.all((confidence - np.mean(confidence, axis=0)) / np.std(confidence, axis=0) < 1, axis=-1)
+        for g in self.critic_optimizer.param_groups:
+            g["lr"] = self.critic_lr * confidence.sum() / batch_size
 
         # Concatenate
         state = torch.cat([state, unreal_state], dim=0)
@@ -221,6 +238,10 @@ class EnsembleDDPG(object):
         # Update the frozen critic target models
         for param, target_param in zip(self.critic.parameters(), self.critic_target.parameters()):
             target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
+
+        # Reset learning rate
+        for g in self.critic_optimizer.param_groups:
+            g["lr"] = self.critic_lr
 
         return critic_loss.item()
 

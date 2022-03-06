@@ -62,6 +62,13 @@ if __name__ == "__main__":
     parser.add_argument("--save_model", action="store_true")  # Save model and optimizer parameters
     parser.add_argument("--load_model", default="")  # Model load file name, "" doesn't load, "default" uses file_name
     parser.add_argument("--update_to_data_ratio", default=10, type=int)
+    parser.add_argument("--num_q", default=10, type=int)
+    parser.add_argument("--num_q_min", default=2, type=int)
+    parser.add_argument("--num_pi", default=10, type=int)
+    parser.add_argument("--num_pi_min", default=2, type=int)
+    parser.add_argument("--actor_lr", default=1e-3, type=float)
+    parser.add_argument("--critic_lr", default=3e-4, type=float)
+    parser.add_argument("--model_based", action="store_true")
 
     args = parser.parse_args()
 
@@ -80,11 +87,14 @@ if __name__ == "__main__":
 
     logger_kwargs = {
         "output_dir": log_dir,
-        "output_fname": f"{file_name}.txt",
+        "output_fname": "progress.txt",
         "exp_name": "virtual",
     }
     logger = EpochLogger(**logger_kwargs)
-    logger.save_config(args)
+    config_kwargs = {
+        "config": args,
+    }
+    logger.save_config(config_kwargs)
 
     if not os.path.exists(os.path.join(log_dir, "results")):
         os.makedirs(os.path.join(log_dir, "results"))
@@ -113,6 +123,12 @@ if __name__ == "__main__":
         "max_action": max_action,
         "discount": args.discount,
         "tau": args.tau,
+        "num_q": args.num_q,
+        "num_q_min": args.num_q_min,
+        "num_pi": args.num_pi,
+        "num_pi_min": args.num_pi_min,
+        "actor_lr": args.actor_lr,
+        "critic_lr": args.critic_lr,
     }
 
     # Initialize policy
@@ -124,9 +140,12 @@ if __name__ == "__main__":
 
     replay_buffer = utils.ReplayBuffer(state_dim, action_dim)
 
-    unreal_env = UnrealEnvironment(state_dim, action_dim, 1)
-    unreal_replay_buffer = utils.ReplayBuffer(state_dim, action_dim,)
-    real_ratio = np.linspace(0.5, 1.0, num=int(args.max_timesteps))
+    if args.model_based:
+        unreal_env = UnrealEnvironment(state_dim, action_dim, 1)
+
+    if False:
+        unreal_replay_buffer = utils.ReplayBuffer(state_dim, action_dim,)
+        real_ratio = np.linspace(0.5, 1.0, num=int(args.max_timesteps))
 
     # Evaluate untrained policy
     evaluations = [eval_policy(policy, args.env, args.seed)]
@@ -162,9 +181,6 @@ if __name__ == "__main__":
                     + np.random.normal(0, max_action * args.expl_noise, size=action_dim)
             ).clip(-max_action, max_action)
 
-            if any(np.isnan(action)):
-                action = env.action_space.sample()
-
         # Perform action
         next_state, reward, done, _ = env.step(action)
         done_bool = float(done) if episode_timesteps < env._max_episode_steps else 0
@@ -177,7 +193,7 @@ if __name__ == "__main__":
 
         # Train agent after collecting sufficient data
         if t >= args.start_timesteps:
-            if t % 250 == 0:
+            if t % 250 == 0 and args.model_based:
                 # Train unreal env
                 idx = np.arange(replay_buffer.size)
                 obs, action, next_obs, reward, _ = replay_buffer.sample_numpy(batch_size=len(idx), idx=idx)
@@ -242,14 +258,16 @@ if __name__ == "__main__":
                         # Re-assign observations
                         obs = next_obs
 
-                logger.store(
-                    UnrealBufferSize=unreal_replay_buffer.size,
-                )
+                    logger.store(
+                        UnrealBufferSize=unreal_replay_buffer.size,
+                    )
 
             # actor_loss, critic_loss = 0, 0
             for n in range(args.update_to_data_ratio):
-                critic_loss = policy.train_critic_virtual(replay_buffer, 256, 0.0 / args.update_to_data_ratio, unreal_env)
-                logger.store(CriticLoss=critic_loss)
+
+                if args.model_based:
+                    critic_loss = policy.train_critic_virtual(replay_buffer, 256, 0.0, unreal_env)
+                    logger.store(CriticLoss=critic_loss)
 
                 actor_loss, critic_loss = policy.train(replay_buffer, 256)
                 logger.store(
@@ -303,7 +321,9 @@ if __name__ == "__main__":
 
             if args.save_model:
                 policy.save(os.path.join(log_dir, "models", file_name))
-                unreal_env.save(os.path.join(log_dir, "models", file_name))
+
+                if args.model_based:
+                    unreal_env.save(os.path.join(log_dir, "models", file_name))
 
             logger.log_tabular("Timesteps", t)
             logger.log_tabular("Time", time.time() - start_time)
@@ -311,7 +331,7 @@ if __name__ == "__main__":
             logger.log_tabular("EpisodeTimesteps", with_min_and_max=True)
             logger.log_tabular("EpisodeReward", with_min_and_max=True)
             logger.log_tabular("EpisodeEvalReward", evaluations[-1])
-            logger.log_tabular("UnrealBufferSize", with_min_and_max=True)
+            # logger.log_tabular("UnrealBufferSize", with_min_and_max=True)
             # logger.log_tabular("RealBatchSize")
             # logger.log_tabular("UnrealBatchSize")
             # logger.log_tabular("RealRatio")

@@ -207,7 +207,7 @@ class EnsembleDDPG(object):
         # Set learning rate
         confidence = np.all((confidence - np.mean(confidence, axis=0)) / np.std(confidence, axis=0) < 1, axis=-1)
         for g in self.critic_optimizer.param_groups:
-            g["lr"] = self.critic_lr * confidence.sum() / batch_size
+            g["lr"] = self.critic_lr * confidence.sum() / (10 * batch_size)
 
         # Concatenate
         state = torch.cat([state, unreal_state], dim=0)

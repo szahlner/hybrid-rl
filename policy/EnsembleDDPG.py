@@ -13,6 +13,21 @@ torch.set_default_tensor_type(torch.FloatTensor)
 # Re-tuned version of Deep Deterministic Policy Gradients (DDPG)
 # Paper: https://arxiv.org/abs/1509.02971
 
+class Actor(nn.Module):
+    def __init__(self, state_dim, action_dim, max_action):
+        super(Actor, self).__init__()
+
+        self.l1 = nn.Linear(state_dim, 256)
+        self.l2 = nn.Linear(256, 256)
+        self.l3 = nn.Linear(256, action_dim)
+
+        self.max_action = max_action
+
+    def forward(self, state):
+        a = F.relu(self.l1(state))
+        a = F.relu(self.l2(a))
+        return self.max_action * torch.tanh(self.l3(a))
+
 
 class EnsembleActor(nn.Module):
     def __init__(self, input_dim, output_dim, hidden_dim, network_size, max_action, hidden_activation=torch.relu):
@@ -97,8 +112,9 @@ class EnsembleDDPG(object):
         self.actor_target = copy.deepcopy(self.actor)
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=actor_lr)
 
-        self.total_timesteps = 0
-        self.policy_freq = 5
+        self.actor = Actor(state_dim, action_dim, max_action)
+        self.actor_target = copy.deepcopy(self.actor)
+        self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=actor_lr)
 
         self.num_pi = num_pi
         self.num_pi_min = num_pi_min
@@ -121,6 +137,13 @@ class EnsembleDDPG(object):
 
         self.action_dim = action_dim
         self.state_dim = state_dim
+
+        # Freeze target networks with respect to optimizers (only update via polyak averaging)
+        for param in self.actor_target.parameters():
+            param.requires_grad = False
+
+        for param in self.critic_target.parameters():
+            param.requires_grad = False
 
     def select_action(self, state):
         state = torch.tensor(state.reshape(1, -1), dtype=torch.float32, device=device)
@@ -175,46 +198,23 @@ class EnsembleDDPG(object):
 
         return actor_loss.item(), critic_loss.item()
 
-    def train_critic_virtual(self, replay_buffer, batch_size=256, real_ratio=0.5, unreal_env=None):
+    def train_critic_virtual(self, replay_buffer, batch_size=256, unreal_env=None):
         # Sample replay buffer
-        batch_size_real = int(batch_size * real_ratio)
-        state, action, next_state, reward, not_done = replay_buffer.sample(batch_size_real)
-        unreal_state, _, _, _, _ = replay_buffer.sample_numpy(batch_size - batch_size_real)
+        state, _, _, _, _ = replay_buffer.sample_numpy(batch_size)
 
-        # t_max = 125000
-        # max_action = np.concatenate([
-        #     np.linspace(1, 0, int(t_max / 2)),
-        #     np.zeros((t_max - int(t_max / 2))),
-        # ])
-        # min_action = -max_action
-
-        unreal_action = self.select_action_low_memory(unreal_state)
-        unreal_action += np.random.normal(0, 1 * 0.1, size=unreal_action.shape)
-        # unreal_action += np.random.uniform(max_action[timestep], min_action[timestep], size=unreal_action.shape)
-        unreal_action = unreal_action.clip(-1, 1)
-        # unreal_action = np.random.uniform(-1, 1, size=(len(unreal_state), self.action_dim))
-        unreal_next_state, confidence = unreal_env.predict(unreal_state, unreal_action)
+        action = self.select_action_low_memory(state)
+        action += np.random.normal(0, 1 * 0.1, size=action.shape)
+        action = action.clip(-1, 1)
+        next_state, confidence = unreal_env.predict(state, action)
         # Split observations
-        unreal_reward = unreal_next_state[:, self.state_dim:]
-        unreal_next_state = unreal_next_state[:, :self.state_dim]
+        reward = next_state[:, self.state_dim:]
+        next_state = next_state[:, :self.state_dim]
 
-        unreal_state = torch.tensor(unreal_state, dtype=torch.float32, device=device)
-        unreal_action = torch.tensor(unreal_action, dtype=torch.float32, device=device)
-        unreal_next_state = torch.tensor(unreal_next_state, dtype=torch.float32, device=device)
-        unreal_reward = torch.tensor(unreal_reward, dtype=torch.float32, device=device)
-        unreal_not_done = torch.ones_like(unreal_reward, dtype=torch.bool, device=device)
-
-        # Set learning rate
-        confidence = np.all((confidence - np.mean(confidence, axis=0)) / np.std(confidence, axis=0) < 1, axis=-1)
-        for g in self.critic_optimizer.param_groups:
-            g["lr"] = self.critic_lr * confidence.sum() / (10 * batch_size)
-
-        # Concatenate
-        state = torch.cat([state, unreal_state], dim=0)
-        action = torch.cat([action, unreal_action], dim=0)
-        next_state = torch.cat([next_state, unreal_next_state], dim=0)
-        reward = torch.cat([reward, unreal_reward], dim=0)
-        not_done = torch.cat([not_done, unreal_not_done], dim=0)
+        state = torch.tensor(state, dtype=torch.float32, device=device)
+        action = torch.tensor(action, dtype=torch.float32, device=device)
+        next_state = torch.tensor(next_state, dtype=torch.float32, device=device)
+        reward = torch.tensor(reward, dtype=torch.float32, device=device)
+        not_done = torch.ones_like(reward, dtype=torch.bool, device=device)
 
         # Compute the target Q value
         sample_idx = np.random.choice(self.num_q, self.num_q_min, replace=False)
@@ -239,9 +239,34 @@ class EnsembleDDPG(object):
         for param, target_param in zip(self.critic.parameters(), self.critic_target.parameters()):
             target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
 
-        # Reset learning rate
-        for g in self.critic_optimizer.param_groups:
-            g["lr"] = self.critic_lr
+        return critic_loss.item()
+
+    def train_critic(self, replay_buffer, batch_size=256):
+        # Sample replay buffer
+        state, action, next_state, reward, not_done = replay_buffer.sample(batch_size)
+
+        # Compute the target Q value
+        sample_idx = np.random.choice(self.num_q, self.num_q_min, replace=False)
+        with torch.no_grad():
+            target_q = self.critic_target(next_state, self.actor_target(next_state))
+            target_q = target_q[sample_idx]
+            target_q, _ = torch.min(target_q, dim=0)
+            target_q = reward + not_done * self.discount * target_q
+
+        # Get current Q estimate
+        current_q = self.critic(state, action)
+
+        # Compute critic loss
+        critic_loss = F.mse_loss(current_q, target_q.repeat([self.num_q, 1, 1])) * self.num_q
+
+        # Optimize the critic
+        self.critic_optimizer.zero_grad()
+        critic_loss.backward()
+        self.critic_optimizer.step()
+
+        # Update the frozen critic target models
+        for param, target_param in zip(self.critic.parameters(), self.critic_target.parameters()):
+            target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
 
         return critic_loss.item()
 
@@ -262,79 +287,6 @@ class EnsembleDDPG(object):
             target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
 
         return actor_loss.item()
-
-    def train_virtual(self, replay_buffer, unreal_replay_buffer, batch_size_real=256, batch_size_unreal=256, unreal_env=None):
-        self.total_timesteps += 1
-
-        # Sample replay buffer
-        state, action, next_state, reward, not_done = replay_buffer.sample(batch_size_real)
-        unreal_state, _, _, _, _ = replay_buffer.sample_numpy(batch_size_unreal)
-
-        unreal_action = self.select_action_low_memory(unreal_state)
-        unreal_action += np.random.normal(0, 1 * 0.1, size=unreal_action.shape)
-        unreal_action = unreal_action.clip(-1, 1)
-        unreal_next_state, _ = unreal_env.predict(unreal_state, unreal_action)
-        # Split observations
-        unreal_reward = unreal_next_state[:, self.state_dim:]
-        unreal_next_state = unreal_next_state[:, :self.state_dim]
-
-        unreal_state = torch.tensor(unreal_state, dtype=torch.float32, device=device)
-        unreal_action = torch.tensor(unreal_action, dtype=torch.float32, device=device)
-        unreal_next_state = torch.tensor(unreal_next_state, dtype=torch.float32, device=device)
-        unreal_reward = torch.tensor(unreal_reward, dtype=torch.float32, device=device)
-        unreal_not_done = torch.ones_like(unreal_reward, dtype=torch.bool, device=device)
-
-        # for param in self.actor_optimizer.param_groups:
-        #    param['lr'] = self.actor_lr * unreal_confidence
-
-        # Concatenate
-        state = torch.cat([state, unreal_state], dim=0)
-        action = torch.cat([action, unreal_action], dim=0)
-        next_state = torch.cat([next_state, unreal_next_state], dim=0)
-        reward = torch.cat([reward, unreal_reward], dim=0)
-        not_done = torch.cat([not_done, unreal_not_done], dim=0)
-
-        # Compute the target Q value
-        sample_idxs = np.random.choice(self.num_q, self.num_q_min, replace=False)
-        with torch.no_grad():
-            target_Q = self.critic_target(next_state, self.actor_target(next_state))
-            target_Q = target_Q[sample_idxs]
-            target_Q, _ = torch.min(target_Q, dim=0)
-            target_Q = reward + not_done * self.discount * target_Q
-
-        # Get current Q estimate
-        current_Q = self.critic(state, action)
-
-        # Compute critic loss
-        critic_loss = F.mse_loss(current_Q, target_Q.repeat([self.num_q, 1, 1])) * self.num_q
-
-        # Optimize the critic
-        self.critic_optimizer.zero_grad()
-        critic_loss.backward()
-        self.critic_optimizer.step()
-
-        actor_loss = torch.zeros(1, dtype=torch.float32, device=device)
-
-        # Delayed policy updates
-        if self.total_timesteps % self.policy_freq == 0:
-
-            # Compute actor loss
-            actor_loss = -self.critic(state, self.actor(state)).mean()
-
-            # Optimize the actor
-            self.actor_optimizer.zero_grad()
-            actor_loss.backward()
-            self.actor_optimizer.step()
-
-            # Update the frozen actor target models
-            for param, target_param in zip(self.actor.parameters(), self.actor_target.parameters()):
-                target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
-
-        # Update the frozen critic target models
-        for param, target_param in zip(self.critic.parameters(), self.critic_target.parameters()):
-            target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
-
-        return actor_loss.item(), critic_loss.item()
 
     def save(self, filename):
         torch.save(self.actor.state_dict(), filename + "_actor")

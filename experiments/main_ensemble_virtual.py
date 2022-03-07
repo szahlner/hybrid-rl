@@ -266,39 +266,16 @@ if __name__ == "__main__":
             for n in range(args.update_to_data_ratio):
 
                 if args.model_based:
-                    critic_loss = policy.train_critic_virtual(replay_buffer, 256, 0.0, unreal_env)
+                    critic_loss = policy.train_critic_virtual(replay_buffer, 256, unreal_env)
                     logger.store(CriticLoss=critic_loss)
 
-                actor_loss, critic_loss = policy.train(replay_buffer, 256)
-                logger.store(
-                    ActorLoss=actor_loss,
-                    CriticLoss=critic_loss,
-                )
+                critic_loss = policy.train_critic(replay_buffer, 256)
+                logger.store(CriticLoss=critic_loss)
 
-                if False:
-                    # real_ratio = 1.0 / args.update_to_data_ratio
-                    current_real_ratio = 0.5  # real_ratio[t]
-                    batch_size = int(args.batch_size * current_real_ratio)
-
-                    logger.store(
-                        RealBatchSize=batch_size,
-                        UnrealBatchSize=args.batch_size - batch_size,
-                        RealRatio=current_real_ratio,
-                    )
-
-                    actor_loss, critic_loss = policy.train_virtual(
-                        replay_buffer=replay_buffer,
-                        unreal_replay_buffer=unreal_replay_buffer,
-                        batch_size_real=batch_size,
-                        batch_size_unreal=args.batch_size - batch_size,
-                        unreal_env=unreal_env,
-                    )
-
-            if False:
-                actor_loss = policy.train_actor(replay_buffer, 256)
-                logger.store(
-                    ActorLoss=actor_loss,
-                )
+            actor_loss = policy.train_actor(replay_buffer, 256)
+            logger.store(
+                ActorLoss=actor_loss,
+            )
 
         if done:
             logger.store(

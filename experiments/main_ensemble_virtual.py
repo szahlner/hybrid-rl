@@ -65,7 +65,6 @@ if __name__ == "__main__":
     parser.add_argument("--num_q", default=10, type=int)
     parser.add_argument("--num_q_min", default=2, type=int)
     parser.add_argument("--num_pi", default=10, type=int)
-    parser.add_argument("--num_pi_min", default=2, type=int)
     parser.add_argument("--actor_lr", default=1e-3, type=float)
     parser.add_argument("--critic_lr", default=3e-4, type=float)
     parser.add_argument("--model_based", action="store_true")
@@ -126,7 +125,6 @@ if __name__ == "__main__":
         "num_q": args.num_q,
         "num_q_min": args.num_q_min,
         "num_pi": args.num_pi,
-        "num_pi_min": args.num_pi_min,
         "actor_lr": args.actor_lr,
         "critic_lr": args.critic_lr,
     }

@@ -13,21 +13,6 @@ torch.set_default_tensor_type(torch.FloatTensor)
 # Re-tuned version of Deep Deterministic Policy Gradients (DDPG)
 # Paper: https://arxiv.org/abs/1509.02971
 
-class Actor(nn.Module):
-    def __init__(self, state_dim, action_dim, max_action):
-        super(Actor, self).__init__()
-
-        self.l1 = nn.Linear(state_dim, 256)
-        self.l2 = nn.Linear(256, 256)
-        self.l3 = nn.Linear(256, action_dim)
-
-        self.max_action = max_action
-
-    def forward(self, state):
-        a = F.relu(self.l1(state))
-        a = F.relu(self.l2(a))
-        return self.max_action * torch.tanh(self.l3(a))
-
 
 class EnsembleActor(nn.Module):
     def __init__(self, input_dim, output_dim, hidden_dim, network_size, max_action, hidden_activation=torch.relu):
@@ -97,7 +82,6 @@ class EnsembleDDPG(object):
         num_q=10,
         num_q_min=2,
         num_pi=10,
-        num_pi_min=2,
         actor_lr=1e-3,
         critic_lr=1e-3,
     ):
@@ -111,13 +95,6 @@ class EnsembleDDPG(object):
         ).to(device)
         self.actor_target = copy.deepcopy(self.actor)
         self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=actor_lr)
-
-        self.actor = Actor(state_dim, action_dim, max_action).to(device)
-        self.actor_target = copy.deepcopy(self.actor)
-        self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=actor_lr)
-
-        self.num_pi = num_pi
-        self.num_pi_min = num_pi_min
 
         self.critic_lr = critic_lr
         self.critic = EnsembleCritic(
@@ -205,7 +182,7 @@ class EnsembleDDPG(object):
         action = self.select_action_low_memory(state)
         action += np.random.normal(0, 1 * 0.1, size=action.shape)
         action = action.clip(-1, 1)
-        next_state, confidence = unreal_env.predict(state, action)
+        next_state, _ = unreal_env.predict(state, action)
         # Split observations
         reward = next_state[:, self.state_dim:]
         next_state = next_state[:, :self.state_dim]

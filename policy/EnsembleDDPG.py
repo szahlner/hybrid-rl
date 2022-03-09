@@ -175,14 +175,23 @@ class EnsembleDDPG(object):
 
         return actor_loss.item(), critic_loss.item()
 
-    def train_critic_virtual(self, replay_buffer, batch_size=256, unreal_env=None):
+    def train_critic_virtual(self, replay_buffer, batch_size=256, unreal_env=None, logger=None):
         # Sample replay buffer
         state, _, _, _, _ = replay_buffer.sample_numpy(batch_size)
 
         action = self.select_action_low_memory(state)
         action += np.random.normal(0, 1 * 0.1, size=action.shape)
         action = action.clip(-1, 1)
-        next_state, _ = unreal_env.predict(state, action)
+        next_state, confidence = unreal_env.predict(state, action)
+
+        if logger is not None:
+            logger.store(
+                ConfMean=np.mean(confidence),
+                ConfMax=np.max(confidence),
+                ConfMin=np.min(confidence),
+                ConfStd=np.std(confidence),
+            )
+
         # Split observations
         reward = next_state[:, self.state_dim:]
         next_state = next_state[:, :self.state_dim]

@@ -115,6 +115,9 @@ class EnsembleDDPG(object):
         self.action_dim = action_dim
         self.state_dim = state_dim
 
+        self.confidence_mean = []
+        self.confidence_std = []
+
         # Freeze target networks with respect to optimizers (only update via polyak averaging)
         for param in self.actor_target.parameters():
             param.requires_grad = False
@@ -191,6 +194,9 @@ class EnsembleDDPG(object):
                 ConfMin=np.min(confidence),
                 ConfStd=np.std(confidence),
             )
+
+        if np.mean(confidence) > 1:
+            return
 
         # Split observations
         reward = next_state[:, self.state_dim:]

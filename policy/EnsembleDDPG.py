@@ -196,7 +196,7 @@ class EnsembleDDPG(object):
             )
 
         if np.mean(confidence) > 1:
-            return
+            return -1
 
         # Split observations
         reward = next_state[:, self.state_dim:]

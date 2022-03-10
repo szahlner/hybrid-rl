@@ -163,6 +163,7 @@ if __name__ == "__main__":
             RealRatio=0,
             ActorLoss=0,
             CriticLoss=0,
+            CriticLossVirtual=0,
             ConfMean=0,
             ConfMax=0,
             ConfMin=0,
@@ -267,17 +268,12 @@ if __name__ == "__main__":
             # actor_loss, critic_loss = 0, 0
             for n_update in range(args.update_to_data_ratio):
 
-                if args.model_based:  # and n_update % 2 == 0:
+                if args.model_based and n_update % 2 == 0:
                     critic_loss = policy.train_critic_virtual(replay_buffer, 256, unreal_env, logger)
-                    logger.store(CriticLoss=critic_loss)
+                else:
+                    critic_loss = policy.train_critic(replay_buffer, 256, logger)
 
-                critic_loss = policy.train_critic(replay_buffer, 256)
-                logger.store(CriticLoss=critic_loss)
-
-            actor_loss = policy.train_actor(replay_buffer, 256)
-            logger.store(
-                ActorLoss=actor_loss,
-            )
+            actor_loss = policy.train_actor(replay_buffer, 256, logger)
 
         if done:
             logger.store(
@@ -316,6 +312,7 @@ if __name__ == "__main__":
             # logger.log_tabular("RealRatio")
             logger.log_tabular("ActorLoss", with_min_and_max=True)
             logger.log_tabular("CriticLoss", with_min_and_max=True)
+            logger.log_tabular("CriticLossVirtual", with_min_and_max=True)
             logger.log_tabular("ConfMean", average_only=True)
             logger.log_tabular("ConfStd", average_only=True)
             logger.log_tabular("ConfMax", average_only=True)

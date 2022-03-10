@@ -196,7 +196,7 @@ class EnsembleDDPG(object):
             )
 
         if np.mean(confidence) > 1:
-            return -1
+            return
 
         # Split observations
         reward = next_state[:, self.state_dim:]
@@ -231,9 +231,12 @@ class EnsembleDDPG(object):
         for param, target_param in zip(self.critic.parameters(), self.critic_target.parameters()):
             target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
 
-        return critic_loss.item()
+        if logger is not None:
+            logger.store(
+                CriticLossVirtual=critic_loss.item(),
+            )
 
-    def train_critic(self, replay_buffer, batch_size=256):
+    def train_critic(self, replay_buffer, batch_size=256, logger=None):
         # Sample replay buffer
         state, action, next_state, reward, not_done = replay_buffer.sample(batch_size)
 
@@ -260,9 +263,12 @@ class EnsembleDDPG(object):
         for param, target_param in zip(self.critic.parameters(), self.critic_target.parameters()):
             target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
 
-        return critic_loss.item()
+        if logger is not None:
+            logger.store(
+                CriticLoss=critic_loss.item(),
+            )
 
-    def train_actor(self, replay_buffer, batch_size=256):
+    def train_actor(self, replay_buffer, batch_size=256, logger=None):
         # Sample replay buffer
         state, _, _, _, _ = replay_buffer.sample(batch_size)
 
@@ -278,7 +284,10 @@ class EnsembleDDPG(object):
         for param, target_param in zip(self.actor.parameters(), self.actor_target.parameters()):
             target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
 
-        return actor_loss.item()
+        if logger is not None:
+            logger.store(
+                ActorLoss=actor_loss.item(),
+            )
 
     def save(self, filename):
         torch.save(self.actor.state_dict(), filename + "_actor")

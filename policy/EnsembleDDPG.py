@@ -196,6 +196,7 @@ class EnsembleDDPG(object):
             )
 
         if np.mean(confidence) > 1:
+            self.train_critic(replay_buffer, batch_size, logger)
             return
 
         # Split observations

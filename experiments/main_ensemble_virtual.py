@@ -269,11 +269,11 @@ if __name__ == "__main__":
             for n_update in range(args.update_to_data_ratio):
 
                 if args.model_based and n_update % 2 == 0:
-                    critic_loss = policy.train_critic_virtual(replay_buffer, 256, unreal_env, logger)
+                    policy.train_critic_virtual(replay_buffer, 256, unreal_env, logger)
                 else:
-                    critic_loss = policy.train_critic(replay_buffer, 256, logger)
+                    policy.train_critic(replay_buffer, 256, logger)
 
-            actor_loss = policy.train_actor(replay_buffer, 256, logger)
+                policy.train_actor(replay_buffer, 256, logger)
 
         if done:
             logger.store(

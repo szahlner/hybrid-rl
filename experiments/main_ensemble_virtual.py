@@ -20,7 +20,6 @@ def reject_outliers(data, mean, std, m=2.0):
     inliers = np.where(data_centered < m * std, True, False)
     return np.all(inliers, axis=1)
 
-
 # Runs policy for X episodes and returns average reward
 # A fixed seed is used for the eval environment
 def eval_policy(policy, env_name, seed, eval_episodes=10):
@@ -140,6 +139,7 @@ if __name__ == "__main__":
 
     if args.model_based:
         unreal_env = UnrealEnvironment(state_dim, action_dim, 1)
+        unreal_replay_buffer = utils.ReplayBuffer(state_dim, action_dim)
 
     if False:
         unreal_replay_buffer = utils.ReplayBuffer(state_dim, action_dim,)
@@ -163,7 +163,7 @@ if __name__ == "__main__":
             RealRatio=0,
             ActorLoss=0,
             CriticLoss=0,
-            CriticLossVirtual=0,
+            # CriticLossVirtual=0,
             ConfMean=0,
             ConfMax=0,
             ConfMin=0,
@@ -201,8 +201,51 @@ if __name__ == "__main__":
                 idx = np.arange(replay_buffer.size)
                 obs, action, next_obs, reward, _ = replay_buffer.sample_numpy(batch_size=len(idx), idx=idx)
                 training_inputs = obs
-                training_labels = np.concatenate([next_obs, reward], axis=-1)
+                training_labels = np.concatenate([next_obs - obs, reward], axis=-1)
                 unreal_env.train(training_inputs, action, training_labels)
+
+                # Clear unreal buffer
+                unreal_replay_buffer.clear()
+                # Rollout unreal env
+                batch_size = min(max(replay_buffer.size, 25000), 100000)
+                obs, _, _, _, _ = replay_buffer.sample(batch_size)
+                obs = obs.detach().cpu().numpy()
+                for n in range(5):  # env._max_episode_steps):
+                    action = policy.select_action_low_memory(obs)
+                    # action = policy.actor(torch.FloatTensor(obs).to(device)).detach().cpu().numpy()
+                    # action += np.random.normal(0, max_action * args.expl_noise, size=action.shape)
+                    action = action.clip(-max_action, max_action)
+                    next_obs, confidence = unreal_env.predict(obs, action)
+                    # Split observations
+                    reward = next_obs[:, state_dim:]
+                    next_obs = obs + next_obs[:, :state_dim]
+                    # Handle outliers
+                    inliers = np.all(np.where(confidence < 1, True, False), axis=1)
+
+                    logger.store(
+                        ConfMean=np.mean(confidence),
+                        ConfMax=np.max(confidence),
+                        ConfMin=np.min(confidence),
+                        ConfStd=np.std(confidence),
+                    )
+
+                    if inliers.sum() == 0:
+                        break
+                    # Select inlier observations
+                    obs = obs[inliers]
+                    action = action[inliers]
+                    next_obs = next_obs[inliers]
+                    confidence = confidence[inliers]
+                    reward = reward[inliers]
+                    # Append rollout
+                    for k in range(len(obs)):
+                        unreal_replay_buffer.add(obs[k], action[k], next_obs[k], reward[k], False, confidence[k])
+                    # Re-assign observations
+                    obs = next_obs
+
+                logger.store(
+                    UnrealBufferSize=unreal_replay_buffer.size,
+                )
 
                 if False:
                     # Stats from real replay buffer
@@ -268,12 +311,14 @@ if __name__ == "__main__":
             # actor_loss, critic_loss = 0, 0
             for n_update in range(args.update_to_data_ratio):
 
-                if args.model_based and n_update % 2 == 0:
-                    policy.train_critic_virtual(replay_buffer, 256, unreal_env, logger)
-                else:
-                    policy.train_critic(replay_buffer, 256, logger)
+                if args.model_based and unreal_replay_buffer.size > 256:
+                    policy.train_critic(unreal_replay_buffer, 256, logger)
+                    # policy.train_critic_virtual(replay_buffer, 256, unreal_env, logger)
+                    # policy.train_actor(replay_buffer, 256, logger)
 
-                policy.train_actor(replay_buffer, 256, logger)
+                policy.train(replay_buffer, 256, logger)
+
+            # policy.train_actor(replay_buffer, 256, logger)
 
         if done:
             logger.store(
@@ -306,13 +351,13 @@ if __name__ == "__main__":
             logger.log_tabular("EpisodeTimesteps", with_min_and_max=True)
             logger.log_tabular("EpisodeReward", with_min_and_max=True)
             logger.log_tabular("EpisodeEvalReward", evaluations[-1])
-            # logger.log_tabular("UnrealBufferSize", with_min_and_max=True)
+            logger.log_tabular("UnrealBufferSize", with_min_and_max=True)
             # logger.log_tabular("RealBatchSize")
             # logger.log_tabular("UnrealBatchSize")
             # logger.log_tabular("RealRatio")
             logger.log_tabular("ActorLoss", with_min_and_max=True)
             logger.log_tabular("CriticLoss", with_min_and_max=True)
-            logger.log_tabular("CriticLossVirtual", with_min_and_max=True)
+            # logger.log_tabular("CriticLossVirtual", with_min_and_max=True)
             logger.log_tabular("ConfMean", average_only=True)
             logger.log_tabular("ConfStd", average_only=True)
             logger.log_tabular("ConfMax", average_only=True)

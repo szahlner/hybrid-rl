@@ -136,7 +136,7 @@ class EnsembleDDPG(object):
             action[start_pos : start_pos + batch_chunk_size] = self.actor(obs).detach().cpu().numpy()
         return action
 
-    def train(self, replay_buffer, batch_size=256):
+    def train(self, replay_buffer, batch_size=256, logger=None):
         # Sample replay buffer
         state, action, next_state, reward, not_done = replay_buffer.sample(batch_size)
 
@@ -176,7 +176,11 @@ class EnsembleDDPG(object):
         for param, target_param in zip(self.critic.parameters(), self.critic_target.parameters()):
             target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
 
-        return actor_loss.item(), critic_loss.item()
+        if logger is not None:
+            logger.store(
+                ActorLoss=actor_loss.item(),
+                CriticLoss=critic_loss.item(),
+            )
 
     def train_critic_virtual(self, replay_buffer, batch_size=256, unreal_env=None, logger=None):
         # Sample replay buffer
@@ -185,6 +189,9 @@ class EnsembleDDPG(object):
         action = self.select_action_low_memory(state)
         action += np.random.normal(0, 1 * 0.1, size=action.shape)
         action = action.clip(-1, 1)
+
+        action = np.random.uniform(-1, 1, size=action.shape)
+
         next_state, confidence = unreal_env.predict(state, action)
 
         if logger is not None:
@@ -196,7 +203,12 @@ class EnsembleDDPG(object):
             )
 
         if np.mean(confidence) > 1:
-            self.train_critic(replay_buffer, batch_size, logger)
+            # self.train_critic(replay_buffer, batch_size, logger)
+            if logger is not None:
+                logger.store(
+                    CriticLossVirtual=0,
+                )
+
             return
 
         # Split observations

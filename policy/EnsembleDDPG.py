@@ -294,19 +294,19 @@ class EnsembleDDPG(object):
             )
 
     def save(self, filename):
-        torch.save(self.actor.state_dict(), filename + "_actor")
-        torch.save(self.actor_target.state_dict(), filename + "_actor_target")
-        torch.save(self.actor_optimizer.state_dict(), filename + "_actor_optimizer")
+        torch.save(self.actor.state_dict(), filename + "_actor.zip")
+        torch.save(self.actor_target.state_dict(), filename + "_actor_target.zip")
+        torch.save(self.actor_optimizer.state_dict(), filename + "_actor_optimizer.zip")
 
-        torch.save(self.critic.state_dict(), filename + f"_critic")
-        torch.save(self.critic_target.state_dict(), filename + f"_critic_target")
-        torch.save(self.critic_optimizer.state_dict(), filename + f"_critic_optimizer")
+        torch.save(self.critic.state_dict(), filename + f"_critic.zip")
+        torch.save(self.critic_target.state_dict(), filename + f"_critic_target.zip")
+        torch.save(self.critic_optimizer.state_dict(), filename + f"_critic_optimizer.zip")
 
     def load(self, filename):
-        self.actor.load_state_dict(torch.load(filename + "_actor"))
-        self.actor_target.load_state_dict(torch.load(filename + f"_actor_target"))
-        self.actor_optimizer.load_state_dict(torch.load(filename + "_actor_optimizer"))
+        self.actor.load_state_dict(torch.load(filename + "_actor.zip", map_location=torch.device(device)))
+        self.actor_target.load_state_dict(torch.load(filename + f"_actor_target.zip", map_location=torch.device(device)))
+        self.actor_optimizer.load_state_dict(torch.load(filename + "_actor_optimizer.zip", map_location=torch.device(device)))
 
-        self.critic.load_state_dict(torch.load(filename + f"_critic"))
-        self.critic_target.load_state_dict(torch.load(filename + f"_critic_target"))
-        self.critic_optimizer.load_state_dict(torch.load(filename + f"_critic_optimizer"))
+        self.critic.load_state_dict(torch.load(filename + f"_critic.zip", map_location=torch.device(device)))
+        self.critic_target.load_state_dict(torch.load(filename + f"_critic_target.zip", map_location=torch.device(device)))
+        self.critic_optimizer.load_state_dict(torch.load(filename + f"_critic_optimizer.zip", map_location=torch.device(device)))

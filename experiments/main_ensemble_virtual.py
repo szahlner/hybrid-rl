@@ -133,13 +133,17 @@ if __name__ == "__main__":
 
     if args.load_model != "":
         policy_file = file_name if args.load_model == "default" else args.load_model
-        policy.load(f"./../models/{policy_file}")
+        policy.load(f"./../{args.load_model}/models/{file_name}")
 
     replay_buffer = utils.ReplayBuffer(state_dim, action_dim)
 
     if args.model_based:
         unreal_env = UnrealEnvironment(state_dim, action_dim, 1)
         unreal_replay_buffer = utils.ReplayBuffer(state_dim, action_dim)
+
+        if args.load_model != "":
+            unreal_env_file = file_name if args.load_model == "default" else args.load_model
+            policy.load(f"./../{args.load_model}/models/{file_name}")
 
     if False:
         unreal_replay_buffer = utils.ReplayBuffer(state_dim, action_dim,)

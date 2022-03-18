@@ -240,9 +240,14 @@ class EnsembleDynamicsModel():
         return np.median(prediction, axis=0), np.median(prediction_mc, axis=0)
 
     def save(self, filename):
-        torch.save(self.ensemble_model.state_dict(), filename + "_unreal_ensemble")
-        torch.save(self.optimizer.state_dict(), filename + "_unreal_ensemble_optimizer")
+        torch.save(self.ensemble_model.state_dict(), filename + "_unreal_ensemble.zip")
+        torch.save(self.optimizer.state_dict(), filename + "_unreal_ensemble_optimizer.zip")
+        torch.save([self.scaler.mu, self.scaler.std], filename + "_unreal_scaler.zip")
 
     def load(self, filename):
-        self.ensemble_model.load_state_dict(torch.load(filename + "_unreal_ensemble"))
-        self.optimizer.load_state_dict(torch.load(filename + "_unreal_ensemble_optimizer"))
+        self.ensemble_model.load_state_dict(torch.load(filename + "_unreal_ensemble.zip", map_location=torch.device(device)))
+        self.optimizer.load_state_dict(torch.load(filename + "_unreal_ensemble_optimizer.zip", map_location=torch.device(device)))
+
+        mu, std = torch.load(filename + "_unreal_scaler.zip", map_location=torch.device(device))
+        self.scaler.mu = mu
+        self.scaler.std = std

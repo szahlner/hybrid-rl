@@ -161,7 +161,7 @@ if __name__ == "__main__":
 
     def prepare_logger():
         logger.store(
-            UnrealBufferSize=0,
+            # UnrealBufferSize=0,
             RealBatchSize=0,
             UnrealBatchSize=0,
             RealRatio=0,
@@ -356,7 +356,7 @@ if __name__ == "__main__":
             logger.log_tabular("EpisodeTimesteps", with_min_and_max=True)
             logger.log_tabular("EpisodeReward", with_min_and_max=True)
             logger.log_tabular("EpisodeEvalReward", evaluations[-1])
-            logger.log_tabular("UnrealBufferSize", with_min_and_max=True)
+            # logger.log_tabular("UnrealBufferSize", with_min_and_max=True)
             # logger.log_tabular("RealBatchSize")
             # logger.log_tabular("UnrealBatchSize")
             # logger.log_tabular("RealRatio")

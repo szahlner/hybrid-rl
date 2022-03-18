@@ -9,7 +9,7 @@ import datetime
 import utils.utils as utils
 import policy.EnsembleDDPG as EDDPG
 
-from unreal_env.env2 import EnsembleDynamicsModel as UnrealEnvironment
+from unreal_env.envd import EnsembleDynamicsModel as UnrealEnvironment
 from utils.logger import EpochLogger
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -196,7 +196,7 @@ if __name__ == "__main__":
 
         # Train agent after collecting sufficient data
         if t >= args.start_timesteps:
-            if t % 250 == 0 and args.model_based:
+            if t % 50 == 0 and args.model_based:
                 # Train unreal env
                 idx = np.arange(replay_buffer.size)
                 obs, action, next_obs, reward, _ = replay_buffer.sample_numpy(batch_size=len(idx), idx=idx)
@@ -204,48 +204,49 @@ if __name__ == "__main__":
                 training_labels = np.concatenate([next_obs - obs, reward], axis=-1)
                 unreal_env.train(training_inputs, action, training_labels)
 
-                # Clear unreal buffer
-                unreal_replay_buffer.clear()
-                # Rollout unreal env
-                batch_size = min(max(replay_buffer.size, 25000), 100000)
-                obs, _, _, _, _ = replay_buffer.sample(batch_size)
-                obs = obs.detach().cpu().numpy()
-                for n in range(5):  # env._max_episode_steps):
-                    action = policy.select_action_low_memory(obs)
-                    # action = policy.actor(torch.FloatTensor(obs).to(device)).detach().cpu().numpy()
-                    # action += np.random.normal(0, max_action * args.expl_noise, size=action.shape)
-                    action = action.clip(-max_action, max_action)
-                    next_obs, confidence = unreal_env.predict(obs, action)
-                    # Split observations
-                    reward = next_obs[:, state_dim:]
-                    next_obs = obs + next_obs[:, :state_dim]
-                    # Handle outliers
-                    inliers = np.all(np.where(confidence < 1, True, False), axis=1)
+                if False:
+                    # Clear unreal buffer
+                    unreal_replay_buffer.clear()
+                    # Rollout unreal env
+                    batch_size = min(max(replay_buffer.size, 25000), 100000)
+                    obs, _, _, _, _ = replay_buffer.sample(batch_size)
+                    obs = obs.detach().cpu().numpy()
+                    for n in range(5):  # env._max_episode_steps):
+                        action = policy.select_action_low_memory(obs)
+                        # action = policy.actor(torch.FloatTensor(obs).to(device)).detach().cpu().numpy()
+                        # action += np.random.normal(0, max_action * args.expl_noise, size=action.shape)
+                        action = action.clip(-max_action, max_action)
+                        next_obs, confidence = unreal_env.predict(obs, action)
+                        # Split observations
+                        reward = next_obs[:, state_dim:]
+                        next_obs = obs + next_obs[:, :state_dim]
+                        # Handle outliers
+                        inliers = np.all(np.where(confidence < 1, True, False), axis=1)
+
+                        logger.store(
+                            ConfMean=np.mean(confidence),
+                            ConfMax=np.max(confidence),
+                            ConfMin=np.min(confidence),
+                            ConfStd=np.std(confidence),
+                        )
+
+                        if inliers.sum() == 0:
+                            break
+                        # Select inlier observations
+                        obs = obs[inliers]
+                        action = action[inliers]
+                        next_obs = next_obs[inliers]
+                        confidence = confidence[inliers]
+                        reward = reward[inliers]
+                        # Append rollout
+                        for k in range(len(obs)):
+                            unreal_replay_buffer.add(obs[k], action[k], next_obs[k], reward[k], False, confidence[k])
+                        # Re-assign observations
+                        obs = next_obs
 
                     logger.store(
-                        ConfMean=np.mean(confidence),
-                        ConfMax=np.max(confidence),
-                        ConfMin=np.min(confidence),
-                        ConfStd=np.std(confidence),
+                        UnrealBufferSize=unreal_replay_buffer.size,
                     )
-
-                    if inliers.sum() == 0:
-                        break
-                    # Select inlier observations
-                    obs = obs[inliers]
-                    action = action[inliers]
-                    next_obs = next_obs[inliers]
-                    confidence = confidence[inliers]
-                    reward = reward[inliers]
-                    # Append rollout
-                    for k in range(len(obs)):
-                        unreal_replay_buffer.add(obs[k], action[k], next_obs[k], reward[k], False, confidence[k])
-                    # Re-assign observations
-                    obs = next_obs
-
-                logger.store(
-                    UnrealBufferSize=unreal_replay_buffer.size,
-                )
 
                 if False:
                     # Stats from real replay buffer
@@ -311,9 +312,9 @@ if __name__ == "__main__":
             # actor_loss, critic_loss = 0, 0
             for n_update in range(args.update_to_data_ratio):
 
-                if args.model_based and unreal_replay_buffer.size > 256:
-                    policy.train_critic(unreal_replay_buffer, 256, logger)
-                    # policy.train_critic_virtual(replay_buffer, 256, unreal_env, logger)
+                if args.model_based:
+                    # policy.train_critic(unreal_replay_buffer, 256, logger)
+                    policy.train_critic_virtual(replay_buffer, 256, unreal_env, logger)
                     # policy.train_actor(replay_buffer, 256, logger)
 
                 policy.train(replay_buffer, 256, logger)

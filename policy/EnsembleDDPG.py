@@ -189,9 +189,6 @@ class EnsembleDDPG(object):
         action = self.select_action_low_memory(state)
         action += np.random.normal(0, 1 * 0.1, size=action.shape)
         action = action.clip(-1, 1)
-
-        action = np.random.uniform(-1, 1, size=action.shape)
-
         next_state, confidence = unreal_env.predict(state, action)
 
         if logger is not None:
@@ -203,12 +200,6 @@ class EnsembleDDPG(object):
             )
 
         if np.mean(confidence) > 1:
-            # self.train_critic(replay_buffer, batch_size, logger)
-            if logger is not None:
-                logger.store(
-                    CriticLossVirtual=0,
-                )
-
             return
 
         # Split observations

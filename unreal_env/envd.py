@@ -144,6 +144,8 @@ class EnsembleDynamicsModel():
         ).to(device)
         self.optimizer = torch.optim.Adam(self.ensemble_model.parameters(), lr=1e-3)
         self.scaler = StandardScaler()
+        self.scaler.mu = np.zeros(state_size + action_size)
+        self.scaler.std = np.ones(state_size + action_size)
 
     def train(self, obs, actions, labels, batch_size=256, holdout_ratio=0.2, max_epochs_since_update=5):
         self._max_epochs_since_update = max_epochs_since_update

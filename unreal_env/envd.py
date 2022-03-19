@@ -114,7 +114,7 @@ class EnsembleModel(nn.Module):
             in_size = out_size
             self.net.append(layer)
             self.net.append(nn.Dropout(dr))
-        self.net.append(EnsembleFC(in_size, state_size + reward_size, network_size))
+        self.last_layer = EnsembleFC(in_size, state_size + reward_size, network_size)
         self.apply(init_weights)
 
     def forward(self, state):
@@ -122,7 +122,8 @@ class EnsembleModel(nn.Module):
         for n, layer in enumerate(self.net):
             x = layer(x)
             x = self.hidden_activation(x)
-        return x
+        out = self.last_layer(x)
+        return out
 
 
 class EnsembleDynamicsModel():
@@ -188,8 +189,8 @@ class EnsembleDynamicsModel():
                 self.optimizer.step()
 
             with torch.no_grad():
-                prediction = self.ensemble_model(holdout_inputs)
-                holdout_mse_losses = (prediction - holdout_labels.repeat([self.network_size, 1, 1])).pow(2).mean(dim=(1, 2))
+                holdout_prediction = self.ensemble_model(holdout_inputs)
+                holdout_mse_losses = (holdout_prediction - holdout_labels.repeat([self.network_size, 1, 1])).pow(2).mean(dim=(1, 2))
                 holdout_mse_losses = holdout_mse_losses.detach().cpu().numpy()
 
                 break_train = self._save_best(epoch, holdout_mse_losses)

@@ -9,7 +9,7 @@ import datetime
 import utils.utils as utils
 import policy.EnsembleDDPG as EDDPG
 
-from unreal_env.envd import EnsembleDynamicsModel as UnrealEnvironment
+from unreal_env.env2 import EnsembleDynamicsModel as UnrealEnvironment
 from utils.logger import EpochLogger
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

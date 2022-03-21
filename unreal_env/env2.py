@@ -99,7 +99,7 @@ class EnsembleFC(nn.Module):
 
 
 class EnsembleModel(nn.Module):
-    def __init__(self, state_size, action_size, reward_size, ensemble_size, hidden_size=200, learning_rate=1e-3,
+    def __init__(self, state_size, action_size, reward_size, ensemble_size, hidden_size=200, learning_rate=3e-4,
                  use_decay=False):
         super(EnsembleModel, self).__init__()
         self.hidden_size = hidden_size

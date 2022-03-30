@@ -67,7 +67,7 @@ class ReplayBuffer(object):
                 self.next_state[idx],
                 self.reward[idx],
                 self.not_done[idx],
-                conf,
+                self.confidence[idx],
             )
         else:
             return (

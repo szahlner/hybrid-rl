@@ -141,7 +141,7 @@ if __name__ == "__main__":
     if args.model_based:
         stochastic_unreal_env = StochasticUnrealEnvironment(state_dim, action_dim, 1, network_size=1)
         deterministic_unreal_env = DeterministicUnrealEnvironment(state_dim, action_dim, 1, network_size=1)
-        # unreal_replay_buffer = utils.ReplayBuffer(state_dim, action_dim)
+        unreal_replay_buffer = utils.ReplayBuffer(state_dim, action_dim)
 
         if args.load_model != "":
             unreal_env_file = file_name if args.load_model == "default" else args.load_model
@@ -252,6 +252,60 @@ if __name__ == "__main__":
                         ModellMSEErrorDeterministic=np.power(deterministic_next_obs_numpy - np.concatenate([next_obs_numpy, reward_numpy], axis=-1), 2).sum(),
                     )
 
+                # Re-rollout buffer
+                if unreal_replay_buffer.size > 0:
+                    # Sample
+                    obs, actions, next_obs_old, reward_old, not_done, confidence_old = unreal_replay_buffer.sample_numpy(
+                        batch_size=unreal_replay_buffer.size,
+                        idx=np.arange(unreal_replay_buffer.size),
+                        confidence=True,
+                    )
+                    # Predict
+                    prediction, confidence_new = deterministic_unreal_env.predict(obs, actions)
+                    # Get better prediction
+                    mask = np.all(np.where(confidence_new < confidence_old, True, False), axis=-1)
+                    # Re-write next_state, reward
+                    next_obs, reward, confidence = next_obs_old, reward_old, confidence_old
+                    next_obs[mask] = obs[mask] + prediction[mask, :state_dim]
+                    reward[mask] = prediction[mask, state_dim:]
+                    confidence[mask] = confidence_new[mask]
+                    # Clear old buffer
+                    unreal_replay_buffer.clear()
+                    # Re-write to buffer
+                    for n in range(len(obs)):
+                        unreal_replay_buffer.add(obs[n], actions[n], next_obs[n], reward[n], False, confidence[n])
+
+                # Rollout buffer
+                rollouts = 0
+                while True:
+                    # Sample
+                    if rollouts == 0:
+                        obs, _, _, _, _ = replay_buffer.sample_numpy(batch_size=10000)
+                    # Get action
+                    action = policy.select_action_low_memory(obs)
+                    action += np.random.normal(0, max_action * args.expl_noise, size=action.shape)
+                    action = action.clip(-1, 1)
+                    # Predict next state
+                    prediction, confidence = deterministic_unreal_env.predict(obs, action)
+                    # Make filter
+                    mask = np.all(np.where(confidence < 1, True, False), axis=-1)
+                    # Break condition
+                    if mask.sum() == 0:
+                        break
+                    # Filter
+                    obs = obs[mask]
+                    next_obs = obs + prediction[mask, :state_dim]
+                    reward = prediction[mask, state_dim:]
+                    action = action[mask]
+                    confidence = confidence[mask]
+                    # Add to buffer
+                    for n in range(len(obs)):
+                        unreal_replay_buffer.add(obs[n], action[n], next_obs[n], reward[n], False, confidence[n])
+                    # Re-assign state
+                    obs = next_obs
+                    # Update counter
+                    rollouts += 1
+
                 if False:
                     # Clear unreal buffer
                     unreal_replay_buffer.clear()
@@ -357,15 +411,18 @@ if __name__ == "__main__":
                         UnrealBufferSize=unreal_replay_buffer.size,
                     )
 
+            policy.train(replay_buffer, 256, logger)
+
             # actor_loss, critic_loss = 0, 0
-            for n_update in range(args.update_to_data_ratio):
+            if args.model_based and unreal_replay_buffer.size > 256:
+                for n_update in range(unreal_replay_buffer.size // replay_buffer.size):  # args.update_to_data_ratio):
+                    policy.train(unreal_replay_buffer, 256, logger)
 
-                if args.model_based:
+                # if args.model_based and unreal_replay_buffer.size > 256:
+                    # policy.train(unreal_replay_buffer, 256, logger)
                     # policy.train_critic(unreal_replay_buffer, 256, logger)
-                    policy.train_virtual(replay_buffer, 256, deterministic_unreal_env, logger)
+                    # policy.train_virtual(replay_buffer, 256, deterministic_unreal_env, logger)
                     # policy.train_actor(replay_buffer, 256, logger)
-
-                policy.train(replay_buffer, 256, logger)
 
             # policy.train_actor(replay_buffer, 256, logger)
 

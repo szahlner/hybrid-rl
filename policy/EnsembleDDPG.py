@@ -195,10 +195,10 @@ class EnsembleDDPG(object):
         n_tries = 100
         while n < batch_size and k < n_tries:
             # Sample replay buffer
-            state_numpy, _, _, _, _ = replay_buffer.sample_numpy(batch_size)
+            state_numpy, _, _, _, _ = replay_buffer.sample_numpy(2 * batch_size)
 
             action_numpy = self.select_action_low_memory(state_numpy)
-            action_numpy += np.random.normal(0, 1 * 0.1, size=action_numpy.shape)
+            # action_numpy += np.random.normal(0, 1 * 0.1, size=action_numpy.shape)
             action_numpy = action_numpy.clip(-1, 1)
             next_state_numpy, confidence_numpy = unreal_env.predict(state_numpy, action_numpy)
 
@@ -230,7 +230,7 @@ class EnsembleDDPG(object):
             n += n_good
             k += 1
 
-        if len(state) == 0:
+        if n == 0:
             if logger is not None:
                 logger.store(
                     ActorLoss=0,
@@ -257,6 +257,17 @@ class EnsembleDDPG(object):
         self.critic_optimizer.zero_grad()
         critic_loss.backward()
         self.critic_optimizer.step()
+
+        # Update the frozen target models
+        for param, target_param in zip(self.critic.parameters(), self.critic_target.parameters()):
+            target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
+
+        if logger is not None:
+            logger.store(
+                CriticLoss=critic_loss.item(),
+            )
+
+        return
 
         # Compute actor loss
         # self.critic.requires_grad_(False)

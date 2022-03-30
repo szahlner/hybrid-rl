@@ -416,8 +416,8 @@ if __name__ == "__main__":
             # actor_loss, critic_loss = 0, 0
             if args.model_based and unreal_replay_buffer.size > 256:
                 n_updates = max(args.update_to_data_ratio, unreal_replay_buffer.size // replay_buffer.size)
-                for n_update in range(n_updates):  # args.update_to_data_ratio):
-                    policy.train(unreal_replay_buffer, 256, logger)
+                for _ in range(n_updates):  # args.update_to_data_ratio):
+                    policy.train_critic(unreal_replay_buffer, 256, logger)
 
                 # if args.model_based and unreal_replay_buffer.size > 256:
                     # policy.train(unreal_replay_buffer, 256, logger)

@@ -9,7 +9,8 @@ import datetime
 import utils.utils as utils
 import policy.EnsembleDDPG as EDDPG
 
-from unreal_env.env2 import EnsembleDynamicsModel as UnrealEnvironment
+from unreal_env.env2 import EnsembleDynamicsModel as StochasticUnrealEnvironment
+from unreal_env.envd import EnsembleDynamicsModel as DeterministicUnrealEnvironment
 from utils.logger import EpochLogger
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -46,7 +47,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--policy", default="EDDPG")  # Policy name (TD3, DDPG or OurDDPG)
-    parser.add_argument("--env", default="Hopper-v3")  # OpenAI gym environment name
+    parser.add_argument("--env", default="Hopper-v2")  # OpenAI gym environment name
     parser.add_argument("--seed", default=0, type=int)  # Sets Gym, PyTorch and Numpy seeds
     parser.add_argument("--start_timesteps", default=5e3, type=int)  # Time steps initial random policy is used
     parser.add_argument("--eval_freq", default=5e3, type=int)  # How often (time steps) we evaluate
@@ -138,8 +139,9 @@ if __name__ == "__main__":
     replay_buffer = utils.ReplayBuffer(state_dim, action_dim)
 
     if args.model_based:
-        unreal_env = UnrealEnvironment(state_dim, action_dim, 1)
-        unreal_replay_buffer = utils.ReplayBuffer(state_dim, action_dim)
+        stochastic_unreal_env = StochasticUnrealEnvironment(state_dim, action_dim, 1, network_size=1)
+        deterministic_unreal_env = DeterministicUnrealEnvironment(state_dim, action_dim, 1, network_size=1)
+        # unreal_replay_buffer = utils.ReplayBuffer(state_dim, action_dim)
 
         if args.load_model != "":
             unreal_env_file = file_name if args.load_model == "default" else args.load_model
@@ -172,6 +174,18 @@ if __name__ == "__main__":
             ConfMax=0,
             ConfMin=0,
             ConfStd=0,
+            ConfMeanStochastic=0,
+            ConfMaxStochastic=0,
+            ConfMinStochastic=0,
+            ConfStdStochastic=0,
+            ConfMeanDeterministic=0,
+            ConfMaxDeterministic=0,
+            ConfMinDeterministic=0,
+            ConfStdDeterministic=0,
+            ModellErrorStochastic=0,
+            ModellMSEErrorStochastic=0,
+            ModellErrorDeterministic=0,
+            ModellMSEErrorDeterministic=0,
         )
     prepare_logger()
 
@@ -200,13 +214,43 @@ if __name__ == "__main__":
 
         # Train agent after collecting sufficient data
         if t >= args.start_timesteps:
-            if t % 50 == 0 and args.model_based:
+            if t % 250 == 0 and args.model_based:
                 # Train unreal env
-                idx = np.arange(replay_buffer.size)
-                obs, action, next_obs, reward, _ = replay_buffer.sample_numpy(batch_size=len(idx), idx=idx)
+                # idx = np.arange(replay_buffer.size)
+                # obs, action, next_obs, reward, _ = replay_buffer.sample_numpy(batch_size=len(idx), idx=idx)
+                obs, action, next_obs, reward, _ = replay_buffer.sample_numpy(batch_size=10000)
                 training_inputs = obs
                 training_labels = np.concatenate([next_obs - obs, reward], axis=-1)
-                unreal_env.train(training_inputs, action, training_labels)
+
+                stochastic_unreal_env.train(training_inputs, action, training_labels)
+                deterministic_unreal_env.train(training_inputs, action, training_labels)
+
+                state_numpy, action_numpy, next_obs_numpy, reward_numpy, _ = replay_buffer.sample_numpy(256)
+                stochastic_next_obs_numpy, stochastic_confidence_numpy = stochastic_unreal_env.predict(state_numpy, action_numpy)
+                deterministic_next_obs_numpy, deterministic_confidence_numpy = deterministic_unreal_env.predict(state_numpy, action_numpy)
+
+                stochastic_next_obs_numpy[:, :state_dim] += state_numpy
+                deterministic_next_obs_numpy[:, :state_dim] += state_numpy
+
+                if logger is not None:
+                    logger.store(
+                        ConfMean=0,
+                        ConfMax=0,
+                        ConfMin=0,
+                        ConfStd=0,
+                        ConfMeanStochastic=np.mean(stochastic_confidence_numpy),
+                        ConfMaxStochastic=np.max(stochastic_confidence_numpy),
+                        ConfMinStochastic=np.min(stochastic_confidence_numpy),
+                        ConfStdStochastic=np.std(stochastic_confidence_numpy),
+                        ConfMeanDeterministic=np.mean(deterministic_confidence_numpy),
+                        ConfMaxDeterministic=np.max(deterministic_confidence_numpy),
+                        ConfMinDeterministic=np.min(deterministic_confidence_numpy),
+                        ConfStdDeterministic=np.std(deterministic_confidence_numpy),
+                        ModellErrorStochastic=(stochastic_next_obs_numpy - np.concatenate([next_obs_numpy, reward_numpy], axis=-1)).sum(),
+                        ModellMSEErrorStochastic=np.power(stochastic_next_obs_numpy - np.concatenate([next_obs_numpy, reward_numpy], axis=-1), 2).sum(),
+                        ModellErrorDeterministic=(deterministic_next_obs_numpy - np.concatenate([next_obs_numpy, reward_numpy], axis=-1)).sum(),
+                        ModellMSEErrorDeterministic=np.power(deterministic_next_obs_numpy - np.concatenate([next_obs_numpy, reward_numpy], axis=-1), 2).sum(),
+                    )
 
                 if False:
                     # Clear unreal buffer
@@ -318,7 +362,7 @@ if __name__ == "__main__":
 
                 if args.model_based:
                     # policy.train_critic(unreal_replay_buffer, 256, logger)
-                    policy.train_critic_virtual(replay_buffer, 256, unreal_env, logger)
+                    policy.train_virtual(replay_buffer, 256, deterministic_unreal_env, logger)
                     # policy.train_actor(replay_buffer, 256, logger)
 
                 policy.train(replay_buffer, 256, logger)
@@ -348,7 +392,7 @@ if __name__ == "__main__":
                 policy.save(os.path.join(log_dir, "models", file_name))
 
                 if args.model_based:
-                    unreal_env.save(os.path.join(log_dir, "models", file_name))
+                    stochastic_unreal_env.save(os.path.join(log_dir, "models", file_name))
 
             logger.log_tabular("Timesteps", t)
             logger.log_tabular("Time", time.time() - start_time)
@@ -367,6 +411,18 @@ if __name__ == "__main__":
             logger.log_tabular("ConfStd", average_only=True)
             logger.log_tabular("ConfMax", average_only=True)
             logger.log_tabular("ConfMin", average_only=True)
+            logger.log_tabular("ConfMeanStochastic", average_only=True)
+            logger.log_tabular("ConfStdStochastic", average_only=True)
+            logger.log_tabular("ConfMaxStochastic", average_only=True)
+            logger.log_tabular("ConfMinStochastic", average_only=True)
+            logger.log_tabular("ConfMeanDeterministic", average_only=True)
+            logger.log_tabular("ConfStdDeterministic", average_only=True)
+            logger.log_tabular("ConfMaxDeterministic", average_only=True)
+            logger.log_tabular("ConfMinDeterministic", average_only=True)
+            logger.log_tabular("ModellErrorStochastic", average_only=True)
+            logger.log_tabular("ModellMSEErrorStochastic", average_only=True)
+            logger.log_tabular("ModellErrorDeterministic", average_only=True)
+            logger.log_tabular("ModellMSEErrorDeterministic", average_only=True)
             logger.dump_tabular()
 
 

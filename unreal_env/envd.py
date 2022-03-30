@@ -240,7 +240,7 @@ class EnsembleDynamicsModel():
                 out = out.detach().cpu().numpy()
                 prediction_mc[n, start_pos : start_pos + batch_size] = np.median(out, axis=0)
 
-        return np.median(prediction, axis=0), np.median(prediction_mc, axis=0)
+        return np.median(prediction, axis=0), np.abs((np.median(prediction_mc, axis=0) - np.median(prediction, axis=0)) / np.median(prediction, axis=0))  # np.median(prediction_mc, axis=0)
 
     def save(self, filename):
         torch.save(self.ensemble_model.state_dict(), filename + "_unreal_ensemble.zip")

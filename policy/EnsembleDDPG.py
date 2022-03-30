@@ -182,6 +182,105 @@ class EnsembleDDPG(object):
                 CriticLoss=critic_loss.item(),
             )
 
+    def train_virtual(self, replay_buffer, batch_size=256, unreal_env=None, logger=None):
+        # Preallocate
+        state = torch.empty((batch_size, self.state_dim), dtype=torch.float32, device=device)
+        action = torch.empty((batch_size, self.action_dim), dtype=torch.float32, device=device)
+        next_state = torch.empty((batch_size, self.state_dim), dtype=torch.float32, device=device)
+        reward = torch.empty((batch_size, unreal_env.reward_size), dtype=torch.float32, device=device)
+        not_done = torch.ones_like(reward, dtype=torch.bool, device=device)
+
+        n = 0
+        k = 0
+        n_tries = 100
+        while n < batch_size and k < n_tries:
+            # Sample replay buffer
+            state_numpy, _, _, _, _ = replay_buffer.sample_numpy(batch_size)
+
+            action_numpy = self.select_action_low_memory(state_numpy)
+            action_numpy += np.random.normal(0, 1 * 0.1, size=action_numpy.shape)
+            action_numpy = action_numpy.clip(-1, 1)
+            next_state_numpy, confidence_numpy = unreal_env.predict(state_numpy, action_numpy)
+
+            if logger is not None:
+                logger.store(
+                    ConfMean=np.mean(confidence_numpy),
+                    ConfMax=np.max(confidence_numpy),
+                    ConfMin=np.min(confidence_numpy),
+                    ConfStd=np.std(confidence_numpy),
+                )
+
+            passing_idx = np.all(np.where(confidence_numpy > 1, False, True), axis=1)
+
+            # Split observations
+            reward_numpy = next_state_numpy[passing_idx, self.state_dim:]
+            state_numpy = state_numpy[passing_idx]
+            next_state_numpy = state_numpy + next_state_numpy[passing_idx, :self.state_dim]
+            action_numpy = action_numpy[passing_idx]
+
+            n_good = len(state_numpy)
+            if n_good > batch_size - n:
+                n_good = batch_size - n
+
+            state[n : n+n_good] = torch.tensor(state_numpy[:n_good], dtype=torch.float32, device=device)
+            action[n : n+n_good] = torch.tensor(action_numpy[:n_good], dtype=torch.float32, device=device)
+            next_state[n : n+n_good] = torch.tensor(next_state_numpy[:n_good], dtype=torch.float32, device=device)
+            reward[n : n+n_good] = torch.tensor(reward_numpy[:n_good], dtype=torch.float32, device=device)
+
+            n += n_good
+            k += 1
+
+        if len(state) == 0:
+            if logger is not None:
+                logger.store(
+                    ActorLoss=0,
+                    CriticLoss=0,
+                )
+
+            return
+
+        # Compute the target Q value
+        sample_idx = np.random.choice(self.num_q, self.num_q_min, replace=False)
+        with torch.no_grad():
+            target_q = self.critic_target(next_state, self.actor_target(next_state))
+            target_q = target_q[sample_idx]
+            target_q, _ = torch.min(target_q, dim=0)
+            target_q = reward + not_done * self.discount * target_q
+
+        # Get current Q estimate
+        current_q = self.critic(state, action)
+
+        # Compute critic loss
+        critic_loss = F.mse_loss(current_q, target_q.repeat([self.num_q, 1, 1])) * self.num_q
+
+        # Optimize the critic
+        self.critic_optimizer.zero_grad()
+        critic_loss.backward()
+        self.critic_optimizer.step()
+
+        # Compute actor loss
+        # self.critic.requires_grad_(False)
+        actor_loss = -self.critic(state, self.actor(state)).mean()
+        # self.critic.requires_grad_(True)
+
+        # Optimize the actor
+        self.actor_optimizer.zero_grad()
+        actor_loss.backward()
+        self.actor_optimizer.step()
+
+        # Update the frozen target models
+        for param, target_param in zip(self.actor.parameters(), self.actor_target.parameters()):
+            target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
+
+        for param, target_param in zip(self.critic.parameters(), self.critic_target.parameters()):
+            target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
+
+        if logger is not None:
+            logger.store(
+                ActorLoss=actor_loss.item(),
+                CriticLoss=critic_loss.item(),
+            )
+
     def train_critic_virtual(self, replay_buffer, batch_size=256, unreal_env=None, logger=None):
         # Sample replay buffer
         state, _, _, _, _ = replay_buffer.sample_numpy(batch_size)

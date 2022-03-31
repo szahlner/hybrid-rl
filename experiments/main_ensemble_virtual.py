@@ -139,8 +139,8 @@ if __name__ == "__main__":
     replay_buffer = utils.ReplayBuffer(state_dim, action_dim)
 
     if args.model_based:
-        stochastic_unreal_env = StochasticUnrealEnvironment(state_dim, action_dim, 1, network_size=1)
-        deterministic_unreal_env = DeterministicUnrealEnvironment(state_dim, action_dim, 1, network_size=1)
+        stochastic_unreal_env = StochasticUnrealEnvironment(state_dim, action_dim, 1, network_size=10)
+        deterministic_unreal_env = DeterministicUnrealEnvironment(state_dim, action_dim, 1, network_size=10)
         unreal_replay_buffer = utils.ReplayBuffer(state_dim, action_dim)
 
         if args.load_model != "":

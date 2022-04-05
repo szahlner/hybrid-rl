@@ -13,6 +13,7 @@ import os.path as osp, time, atexit, os
 import warnings
 from mpi_utils.mpi_utils import proc_id, mpi_statistics_scalar
 
+
 color2num = dict(
     gray=30,
     red=31,

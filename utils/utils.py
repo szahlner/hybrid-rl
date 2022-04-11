@@ -7,6 +7,7 @@ import datetime
 from typing import Union
 
 from utils.her.arguments import HerNamespace
+from utils.ddpg.arguments import DdpgNamespace
 from utils.logger import EpochLogger
 
 
@@ -18,21 +19,26 @@ def get_env_params(env: Union[gym.Env, gym.GoalEnv]) -> dict:
         "action": env.action_space.shape[0],
         "action_max": env.action_space.high[0],
         "max_timesteps": env._max_episode_steps,
+        "goal": 0,
+        "reward": 1,
     }
 
     if isinstance(obs, dict):
         params["goal"] = obs["desired_goal"].shape[0]
+        params["reward"] = 0
 
     return params
 
 
-def prepare_logger(args: HerNamespace) -> EpochLogger:
+def prepare_logger(args: Union[DdpgNamespace, HerNamespace]) -> EpochLogger:
     log_dir = "./../logs"
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
 
     if isinstance(args, HerNamespace):
         agent = "HER"
+    elif isinstance(args, DdpgNamespace):
+        agent = "DDPG"
 
     log_dir = os.path.join(
         log_dir,

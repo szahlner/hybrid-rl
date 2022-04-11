@@ -10,9 +10,8 @@ from copy import deepcopy
 
 from utils.mpi.mpi_utils import sync_grads, sync_networks
 from utils.mpi.normalizer import Normalizer
-from utils.her.her_sampler import HerSampler
-from utils.her.replay_buffer import ReplayBuffer, SimpleReplayBuffer
-from utils.her.arguments import HerNamespace
+from utils.ddpg.replay_buffer import ReplayBuffer
+from utils.ddpg.arguments import DdpgNamespace
 from utils.logger import EpochLogger
 
 from world_model.deterministic_world_model import DeterministicWorldModel
@@ -74,8 +73,8 @@ class Critic(nn.Module):
         return q_value
 
 
-class HER:
-    def __init__(self, args: HerNamespace, env: Union[gym.Env, gym.GoalEnv], env_params: dict, logger: EpochLogger):
+class DDPG:
+    def __init__(self, args: DdpgNamespace, env: Union[gym.Env, gym.GoalEnv], env_params: dict, logger: EpochLogger):
         self.args = args
         self.env = env
         self.env_params = env_params
@@ -113,7 +112,6 @@ class HER:
 
         # Create the normalizer
         self.o_norm = Normalizer(size=env_params["obs"], default_clip_range=self.args.clip_range)
-        self.g_norm = Normalizer(size=env_params["goal"], default_clip_range=self.args.clip_range)
 
         # Create the dict for store the model
         if MPI.COMM_WORLD.Get_rank() == 0:
@@ -123,7 +121,7 @@ class HER:
         # Model based section
         if self.args.model_based:
             model_dim_chunk = 20  # self.args.model_dim_chunk
-            output_dim = env_params["obs"] + env_params["goal"] + env_params["reward"]
+            output_dim = env_params["obs"] + env_params["goal"]
             self.model_chunks = [model_dim_chunk for _ in range(output_dim // model_dim_chunk)]
             if output_dim % model_dim_chunk != 0:
                 self.model_chunks.append(output_dim % model_dim_chunk)

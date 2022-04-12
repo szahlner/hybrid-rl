@@ -10,6 +10,7 @@ class ReplayBuffer:
         # Memory management
         self.current_size = 0
         self.pointer = 0
+        self.n_transitions_stored = 0
         self.max_size = buffer_size
 
         # Create the buffer to store info
@@ -37,6 +38,7 @@ class ReplayBuffer:
 
         self.pointer = (self.pointer + 1) % self.max_size
         self.current_size = min(self.current_size + 1, self.max_size)
+        self.n_transitions_stored += 1
 
     # Sample the data from the replay buffer
     def sample(self, batch_size: int):

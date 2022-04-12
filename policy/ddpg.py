@@ -78,11 +78,13 @@ class DDPG:
         self.args = args
         self.env = env
         self.env_params = env_params
-        self.logger = logger
-        self.args.save_dir = os.path.join(self.logger.output_dir, self.args.save_dir)
 
-        # Setup logger
-        self._setup_logger()
+        if MPI.COMM_WORLD.Get_rank() == 0:
+            self.logger = logger
+            self.args.save_dir = os.path.join(self.logger.output_dir, self.args.save_dir)
+
+            # Setup logger
+            self._setup_logger()
 
         # Create the networks
         self.actor_network = Actor(env_params).to(device)
@@ -104,11 +106,8 @@ class DDPG:
         self.actor_optim = torch.optim.Adam(self.actor_network.parameters(), lr=self.args.lr_actor)
         self.critic_optim = torch.optim.Adam(self.critic_network.parameters(), lr=self.args.lr_critic)
 
-        # Her sampler
-        self.her_module = HerSampler(self.args.replay_strategy, self.args.replay_k, self.env.compute_reward)
-
         # Create the replay buffer
-        self.buffer = ReplayBuffer(self.env_params, self.args.buffer_size, self.her_module.sample_her_transitions)
+        self.buffer = ReplayBuffer(self.env_params, self.args.buffer_size)
 
         # Create the normalizer
         self.o_norm = Normalizer(size=env_params["obs"], default_clip_range=self.args.clip_range)
@@ -121,7 +120,7 @@ class DDPG:
         # Model based section
         if self.args.model_based:
             model_dim_chunk = 20  # self.args.model_dim_chunk
-            output_dim = env_params["obs"] + env_params["goal"]
+            output_dim = env_params["obs"] + env_params["reward"]
             self.model_chunks = [model_dim_chunk for _ in range(output_dim // model_dim_chunk)]
             if output_dim % model_dim_chunk != 0:
                 self.model_chunks.append(output_dim % model_dim_chunk)
@@ -139,23 +138,12 @@ class DDPG:
             self.model_chunks = np.cumsum(self.model_chunks).tolist()
 
             # Buffers
-            self.simple_world_model_replay_buffer = SimpleReplayBuffer(self.env_params, self.args.buffer_size)
-
-            # Her sampler
-            self.world_model_her_module = HerSampler(
-                self.args.replay_strategy,
-                self.args.replay_k,
-                self.env.compute_reward,
-            )
+            self.simple_world_model_replay_buffer = ReplayBuffer(self.env_params, self.args.buffer_size)
 
             # Create the replay buffer
             self.world_model_params = deepcopy(self.env_params)
             self.world_model_params["max_timesteps"] = 5  # change max timesteps to rollout length
-            self.world_model_buffer = ReplayBuffer(
-                self.world_model_params,
-                self.args.buffer_size,
-                self.world_model_her_module.sample_her_transitions
-            )
+            self.world_model_buffer = ReplayBuffer(self.world_model_params, self.args.buffer_size)
 
     def learn(self):
         """
@@ -168,53 +156,43 @@ class DDPG:
         # Start to collect samples
         for epoch in range(self.args.n_epochs):
             for _ in range(self.args.n_cycles):
-                mb_obs, mb_ag, mb_g, mb_actions = [], [], [], []
                 for _ in range(self.args.num_rollouts_per_mpi):
                     # Reset the rollouts
-                    ep_obs, ep_ag, ep_g, ep_actions = [], [], [], []
-
                     # Reset the environment
-                    observation = self.env.reset()
-                    obs = observation["observation"]
-                    ag = observation["achieved_goal"]
-                    g = observation["desired_goal"]
+                    obs = self.env.reset()
 
                     # Start to collect samples
                     for t in range(self.env_params["max_timesteps"]):
                         with torch.no_grad():
-                            input_tensor = self._preproc_inputs(obs, g)
+                            input_tensor = self._preproc_inputs(obs)
                             pi = self.actor_network(input_tensor)
                             action = self._select_actions(pi)
 
                         # Feed the actions into the environment
-                        observation_new, reward, _, info = self.env.step(action)
-                        obs_new = observation_new["observation"]
-                        ag_new = observation_new["achieved_goal"]
+                        obs_new, reward, done, info = self.env.step(action)
 
-                        self.logger.store(Reward=reward)
+                        if MPI.COMM_WORLD.Get_rank() == 0:
+                            self.logger.store(Reward=reward)
 
                         # Append rollouts
-                        ep_obs.append(obs.copy())
-                        ep_ag.append(ag.copy())
-                        ep_g.append(g.copy())
-                        ep_actions.append(action.copy())
+                        self.buffer.store(batch=[obs.copy(), obs_new.copy(), reward.copy(), done.copy(), action.copy()])
 
                         # Model based section
                         if self.args.model_based:
                             self.simple_world_model_replay_buffer.store(
-                                batch=[obs.copy(), obs_new.copy(), ag.copy(), ag_new.copy(), g.copy(), action.copy()]
+                                batch=[obs.copy(), obs_new.copy(), reward.copy(), done.copy(), action.copy()]
                             )
 
                             if ts % self.args.model_training_freq == 0 and ts != 0:
                                 transitions = self.simple_world_model_replay_buffer.sample(10000)
 
                                 # Train chunked
-                                training_inputs = np.concatenate([transitions["obs"], transitions["ag"]], axis=-1)
-                                training_outputs = np.concatenate(
-                                    [transitions["obs_next"], transitions["ag_next"]],
+                                training_inputs = transitions["obs"]
+                                training_labels = np.concatenate(
+                                    [transitions["obs_next"] - transitions["obs"], transitions["r"]],
                                     axis=-1
                                 )
-                                training_labels = training_outputs - training_inputs
+
                                 training_inputs = np.concatenate([training_inputs, transitions["actions"]], axis=-1)
                                 for n in range(len(self.model_chunks) - 1):
                                     tl = training_labels[:, self.model_chunks[n]:self.model_chunks[n+1]]
@@ -230,15 +208,12 @@ class DDPG:
                                         self.env_params["obs"]
                                     )
                                 )
-                                world_model_ag = np.empty(
+                                world_model_r = np.empty(
                                     (
                                         n_transitions,
-                                        self.world_model_params["max_timesteps"] + 1,
-                                        self.env_params["goal"]
+                                        self.world_model_params["max_timesteps"],
+                                        self.env_params["reward"]
                                     )
-                                )
-                                world_model_g = np.empty(
-                                    (n_transitions, self.world_model_params["max_timesteps"], self.env_params["goal"])
                                 )
                                 world_model_actions = np.empty(
                                     (
@@ -250,27 +225,22 @@ class DDPG:
                                 world_model_mask = np.empty((n_transitions, self.world_model_params["max_timesteps"]))
 
                                 world_model_obs[:, 0] = transitions["obs"]
-                                world_model_ag[:, 0] = transitions["ag"]
-                                world_model_g[:, 0] = transitions["g"]
 
                                 for n in range(self.world_model_params["max_timesteps"]):
-                                    world_model_g[:, n] = transitions["g"]
-
                                     with torch.no_grad():
-                                        input_tensor = self._preproc_inputs(world_model_obs[:, n], world_model_g[:, n])
+                                        input_tensor = self._preproc_inputs(world_model_obs[:, n])
                                         actions_tensor = self.actor_network(input_tensor)
                                         world_model_actions[:, n] = self._select_actions(actions_tensor)
 
-                                    diff = np.empty((n_transitions, self.env_params["obs"] + self.env_params["goal"]))
+                                    diff = np.empty((n_transitions, self.env_params["obs"] + self.env_params["reward"]))
                                     confidence = np.empty(
-                                        (n_transitions, self.env_params["obs"] + self.env_params["goal"])
+                                        (n_transitions, self.env_params["obs"] + self.env_params["reward"])
                                     )
 
                                     for k in range(len(self.model_chunks) - 1):
                                         diff_, confidence_ = self.world_models[k].predict(
                                             inputs=np.concatenate([
                                                 world_model_obs[:, n],
-                                                world_model_ag[:, n],
                                                 world_model_actions[:, n]
                                                 ], axis=-1)
                                         )
@@ -279,24 +249,25 @@ class DDPG:
 
                                     world_model_mask[:, n] = np.all(np.where(confidence < 1, True, False), axis=-1)
                                     world_model_obs[:, n + 1] = world_model_obs[:, n] + diff[:, :self.env_params["obs"]]
-                                    world_model_ag[:, n + 1] = world_model_ag[:, n] + diff[:, self.env_params["obs"]:]
+                                    world_model_r[:, n] = diff[:, self.env_params["obs"]:]
 
                                 # Mark and select good ones
                                 mask = np.any(world_model_mask, axis=-1)
                                 world_model_obs = world_model_obs[mask]
-                                world_model_ag = world_model_ag[mask]
-                                world_model_g = world_model_g[mask]
+                                world_model_r = world_model_r[mask]
                                 world_model_actions = world_model_actions[mask]
 
                                 if mask.sum() > 0:
-                                    self.world_model_buffer.store_episode(
-                                        episode_batch=[
-                                            world_model_obs,
-                                            world_model_ag,
-                                            world_model_g,
-                                            world_model_actions,
-                                        ]
-                                    )
+                                    for k in range(len(world_model_obs)):
+                                        self.world_model_buffer.store(
+                                            batch=[
+                                                world_model_obs[k, n],
+                                                world_model_obs[k, n + 1],
+                                                world_model_r[k, n],
+                                                False,
+                                                world_model_actions[k, n],
+                                            ]
+                                        )
 
                             # Model based section
                             if ts > self.args.model_training_freq and self.world_model_buffer.current_size > 0:
@@ -310,24 +281,8 @@ class DDPG:
 
                         # Re-assign the observation
                         obs = obs_new
-                        ag = ag_new
 
-                    ep_obs.append(obs.copy())
-                    ep_ag.append(ag.copy())
-                    mb_obs.append(ep_obs)
-                    mb_ag.append(ep_ag)
-                    mb_g.append(ep_g)
-                    mb_actions.append(ep_actions)
-
-                # Convert them into arrays
-                mb_obs = np.array(mb_obs)
-                mb_ag = np.array(mb_ag)
-                mb_g = np.array(mb_g)
-                mb_actions = np.array(mb_actions)
-
-                # Store the episodes
-                self.buffer.store_episode([mb_obs, mb_ag, mb_g, mb_actions])
-                self._update_normalizer([mb_obs, mb_ag, mb_g, mb_actions])
+                self._update_normalizer()
 
                 for _ in range(self.args.n_batches):
                     # Train the network
@@ -359,8 +314,6 @@ class DDPG:
                     [
                         self.o_norm.mean,
                         self.o_norm.std,
-                        self.g_norm.mean,
-                        self.g_norm.std,
                         self.actor_network.state_dict()
                     ],
                     file_path
@@ -372,13 +325,9 @@ class DDPG:
                         model.save(file_path)
 
     # pre_process the inputs
-    def _preproc_inputs(self, obs: np.ndarray, g: np.ndarray) -> torch.Tensor:
+    def _preproc_inputs(self, obs: np.ndarray)-> torch.Tensor:
         obs_norm = self.o_norm.normalize(obs)
-        g_norm = self.g_norm.normalize(g)
-
-        # concatenate the stuffs
-        inputs = np.concatenate([obs_norm, g_norm], axis=-1)
-        inputs = torch.tensor(inputs, dtype=torch.float32, device=device)
+        inputs = torch.tensor(obs_norm, dtype=torch.float32, device=device)
 
         return inputs
 
@@ -403,42 +352,19 @@ class DDPG:
         return action
 
     # update the normalizer
-    def _update_normalizer(self, episode_batch: List[np.ndarray]) -> None:
-        mb_obs, mb_ag, mb_g, mb_actions = episode_batch
-        mb_obs_next = mb_obs[:, 1:, :]
-        mb_ag_next = mb_ag[:, 1:, :]
-
-        # get the number of normalization transitions
-        num_transitions = mb_actions.shape[1]
-
-        # create the new buffer to store them
-        buffer_temp = {
-            "obs": mb_obs,
-            "ag": mb_ag,
-            "g": mb_g,
-            "actions": mb_actions,
-            "obs_next": mb_obs_next,
-            "ag_next": mb_ag_next,
-        }
-        transitions = self.her_module.sample_her_transitions(buffer_temp, num_transitions)
-        obs, g = transitions["obs"], transitions["g"]
-
-        # pre process the obs and g
-        transitions["obs"], transitions["g"] = self._preproc_og(obs, g)
+    def _update_normalizer(self) -> None:
+        last_n_transitions = self.args.num_rollouts_per_mpi * self.env_params["max_timesteps"]
+        obs = self.buffer.buffers["obs"][self.buffer.pointer - last_n_transitions:self.buffer.pointer]
 
         # update
-        self.o_norm.update(transitions["obs"])
-        self.g_norm.update(transitions["g"])
+        self.o_norm.update(obs)
 
         # recompute the stats
         self.o_norm.recompute_stats()
-        self.g_norm.recompute_stats()
 
-    def _preproc_og(self, o: np.ndarray, g: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def _preproc_o(self, o: np.ndarray) -> np.ndarray:
         o = np.clip(o, -self.args.clip_obs, self.args.clip_obs)
-        g = np.clip(g, -self.args.clip_obs, self.args.clip_obs)
-
-        return o, g
+        return o
 
     # soft update
     def _soft_update_target_network(self, target, source) -> None:
@@ -451,17 +377,13 @@ class DDPG:
         transitions = self.buffer.sample(self.args.batch_size)
 
         # pre-process the observation and goal
-        o, o_next, g = transitions["obs"], transitions["obs_next"], transitions["g"]
-        transitions["obs"], transitions["g"] = self._preproc_og(o, g)
-        transitions["obs_next"], transitions["g_next"] = self._preproc_og(o_next, g)
+        o, o_next = transitions["obs"], transitions["obs_next"]
+        transitions["obs"] = self._preproc_o(o)
+        transitions["obs_next"] = self._preproc_o(o_next)
 
         # start to do the update
-        obs_norm = self.o_norm.normalize(transitions["obs"])
-        g_norm = self.g_norm.normalize(transitions["g"])
-        inputs_norm = np.concatenate([obs_norm, g_norm], axis=1)
-        obs_next_norm = self.o_norm.normalize(transitions["obs_next"])
-        g_next_norm = self.g_norm.normalize(transitions["g_next"])
-        inputs_next_norm = np.concatenate([obs_next_norm, g_next_norm], axis=1)
+        inputs_norm = self.o_norm.normalize(transitions["obs"])
+        inputs_next_norm = self.o_norm.normalize(transitions["obs_next"])
 
         # transfer them into the tensor
         inputs_norm_tensor = torch.tensor(inputs_norm, dtype=torch.float32, device=device)
@@ -503,10 +425,11 @@ class DDPG:
         sync_grads(self.critic_network)
         self.critic_optim.step()
 
-        self.logger.store(
-            ActorLoss=actor_loss.item(),
-            CriticLoss=critic_loss.item(),
-        )
+        if MPI.COMM_WORLD.Get_rank() == 0:
+            self.logger.store(
+                ActorLoss=actor_loss.item(),
+                CriticLoss=critic_loss.item(),
+            )
 
     # update the network
     def _unreal_update_network(self):
@@ -514,17 +437,13 @@ class DDPG:
         transitions = self.world_model_buffer.sample(self.args.batch_size)
 
         # pre-process the observation and goal
-        o, o_next, g = transitions["obs"], transitions["obs_next"], transitions["g"]
-        transitions["obs"], transitions["g"] = self._preproc_og(o, g)
-        transitions["obs_next"], transitions["g_next"] = self._preproc_og(o_next, g)
+        o, o_next = transitions["obs"], transitions["obs_next"]
+        transitions["obs"] = self._preproc_o(o)
+        transitions["obs_next"] = self._preproc_o(o_next)
 
         # start to do the update
-        obs_norm = self.o_norm.normalize(transitions["obs"])
-        g_norm = self.g_norm.normalize(transitions["g"])
-        inputs_norm = np.concatenate([obs_norm, g_norm], axis=1)
-        obs_next_norm = self.o_norm.normalize(transitions["obs_next"])
-        g_next_norm = self.g_norm.normalize(transitions["g_next"])
-        inputs_next_norm = np.concatenate([obs_next_norm, g_next_norm], axis=1)
+        inputs_norm = self.o_norm.normalize(transitions["obs"])
+        inputs_next_norm = self.o_norm.normalize(transitions["obs_next"])
 
         # transfer them into the tensor
         inputs_norm_tensor = torch.tensor(inputs_norm, dtype=torch.float32, device=device)
@@ -579,21 +498,17 @@ class DDPG:
 
         for _ in range(self.args.n_test_rollouts):
             per_success_rate = []
-            observation = self.env.reset()
-            obs = observation["observation"]
-            g = observation["desired_goal"]
+            obs = self.env.reset()
 
             for _ in range(self.env_params["max_timesteps"]):
                 with torch.no_grad():
-                    input_tensor = self._preproc_inputs(obs, g)
+                    input_tensor = self._preproc_inputs(obs)
                     pi = self.actor_network(input_tensor)
 
                     # Convert the actions
                     actions = pi.detach().cpu().numpy().squeeze()
 
-                observation_new, _, _, info = self.env.step(actions)
-                obs = observation_new["observation"]
-                g = observation_new["desired_goal"]
+                obs, _, _, info = self.env.step(actions)
                 per_success_rate.append(info["is_success"])
 
             total_success_rate.append(per_success_rate)

@@ -35,11 +35,11 @@ def train(args: HerNamespace):
     agent.learn()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # MPI configuration
-    os.environ['OMP_NUM_THREADS'] = '1'
-    os.environ['MKL_NUM_THREADS'] = '1'
-    os.environ['IN_MPI'] = '1'
+    os.environ["OMP_NUM_THREADS"] = "1"
+    os.environ["MKL_NUM_THREADS"] = "1"
+    os.environ["IN_MPI"] = "1"
 
     # Get the params
     args = get_args_her()

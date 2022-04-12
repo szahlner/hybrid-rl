@@ -28,7 +28,10 @@ def train(args: DdpgNamespace):
     # Get the environment parameters
     env_params = get_env_params(env)
 
-    if env_params["goal"] == 0:
+    if env_params["goal"] > 0:
+        env_params["obs"] += env_params["goal"]
+        env_params["goal"] = 0
+
         keys = ["observation", "desired_goal"]
         env = FlattenObservation(FilterObservation(env, keys))
 

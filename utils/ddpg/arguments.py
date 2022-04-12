@@ -43,7 +43,7 @@ def get_args_her():
     parser.add_argument("--save-interval", type=int, default=5, help="the interval that save the trajectory")
     parser.add_argument("--seed", type=int, default=123, help="random seed")
     parser.add_argument("--num-workers", type=int, default=1, help="the number of cpus to collect samples")
-    parser.add_argument("--replay-strategy", type=str, default="future", help="the HER strategy")
+    # parser.add_argument("--replay-strategy", type=str, default="future", help="the HER strategy")
     # parser.add_argument("--clip-return", type=float, default=50, help="if clip the returns")
     parser.add_argument("--save-dir", type=str, default="saved_models", help="the path to save the models")
     parser.add_argument("--noise-eps", type=float, default=0.2, help="noise eps")

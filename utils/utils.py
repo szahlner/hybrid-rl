@@ -25,7 +25,6 @@ def get_env_params(env: Union[gym.Env, gym.GoalEnv]) -> dict:
 
     if isinstance(obs, dict):
         params["goal"] = obs["desired_goal"].shape[0]
-        params["reward"] = 0
 
     return params
 

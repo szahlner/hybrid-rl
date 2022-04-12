@@ -79,11 +79,13 @@ class HER:
         self.args = args
         self.env = env
         self.env_params = env_params
-        self.logger = logger
-        self.args.save_dir = os.path.join(self.logger.output_dir, self.args.save_dir)
 
-        # Setup logger
-        self._setup_logger()
+        if MPI.COMM_WORLD.Get_rank() == 0:
+            self.logger = logger
+            self.args.save_dir = os.path.join(self.logger.output_dir, self.args.save_dir)
+
+            # Setup logger
+            self._setup_logger()
 
         # Create the networks
         self.actor_network = Actor(env_params).to(device)
@@ -193,7 +195,8 @@ class HER:
                         obs_new = observation_new["observation"]
                         ag_new = observation_new["achieved_goal"]
 
-                        self.logger.store(Reward=reward)
+                        if MPI.COMM_WORLD.Get_rank() == 0:
+                            self.logger.store(Reward=reward)
 
                         # Append rollouts
                         ep_obs.append(obs.copy())
@@ -505,10 +508,11 @@ class HER:
         sync_grads(self.critic_network)
         self.critic_optim.step()
 
-        self.logger.store(
-            ActorLoss=actor_loss.item(),
-            CriticLoss=critic_loss.item(),
-        )
+        if MPI.COMM_WORLD.Get_rank() == 0:
+            self.logger.store(
+                ActorLoss=actor_loss.item(),
+                CriticLoss=critic_loss.item(),
+            )
 
     # update the network
     def _unreal_update_network(self):

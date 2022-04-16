@@ -125,7 +125,7 @@ class HER:
         # Model based section
         if self.args.model_based:
             model_dim_chunk = 20  # self.args.model_dim_chunk
-            output_dim = env_params["obs"] + env_params["goal"] + env_params["reward"]
+            output_dim = env_params["obs"] + env_params["goal"]
             self.model_chunks = [model_dim_chunk for _ in range(output_dim // model_dim_chunk)]
             if output_dim % model_dim_chunk != 0:
                 self.model_chunks.append(output_dim % model_dim_chunk)

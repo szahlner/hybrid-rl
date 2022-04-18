@@ -5,7 +5,7 @@ import torch.nn as nn
 import gym
 import time
 from mpi4py import MPI
-from typing import List, Tuple, Union
+from typing import Union
 from copy import deepcopy
 
 from utils.mpi.mpi_utils import sync_grads, sync_networks
@@ -175,12 +175,26 @@ class DDPG:
                             self.logger.store(Reward=reward)
 
                         # Append rollouts
-                        self.buffer.store(batch=[obs.copy(), obs_new.copy(), reward.copy(), done.copy(), action.copy()])
+                        self.buffer.store(
+                            batch=[
+                                obs.copy(),
+                                obs_new.copy(),
+                                np.array([[reward]]).copy(),
+                                np.array([[done]]).copy(),
+                                action.copy()
+                            ]
+                        )
 
                         # Model based section
                         if self.args.model_based:
                             self.simple_world_model_replay_buffer.store(
-                                batch=[obs.copy(), obs_new.copy(), reward.copy(), done.copy(), action.copy()]
+                                batch=[
+                                    obs.copy(),
+                                    obs_new.copy(),
+                                    np.array([[reward]]).copy(),
+                                    np.array([[done]]).copy(),
+                                    action.copy()
+                                ]
                             )
 
                             if ts % self.args.model_training_freq == 0 and ts != 0:
@@ -258,16 +272,17 @@ class DDPG:
                                 world_model_actions = world_model_actions[mask]
 
                                 if mask.sum() > 0:
-                                    for k in range(len(world_model_obs)):
-                                        self.world_model_buffer.store(
-                                            batch=[
-                                                world_model_obs[k, n],
-                                                world_model_obs[k, n + 1],
-                                                world_model_r[k, n],
-                                                False,
-                                                world_model_actions[k, n],
-                                            ]
-                                        )
+                                    for n in range(self.world_model_params["max_timesteps"]):
+                                        for k in range(len(world_model_obs)):
+                                            self.world_model_buffer.store(
+                                                batch=[
+                                                    world_model_obs[k, n],
+                                                    world_model_obs[k, n + 1],
+                                                    world_model_r[k, n],
+                                                    False,
+                                                    world_model_actions[k, n],
+                                                ]
+                                            )
 
                             # Model based section
                             if ts > self.args.model_training_freq and self.world_model_buffer.current_size > 0:

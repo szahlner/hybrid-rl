@@ -1,49 +1,49 @@
 import torch
 
-torch.set_default_tensor_type(torch.FloatTensor)
+# torch.set_default_tensor_type(torch.FloatTensor)
 import torch.nn as nn
-import torch.nn.functional as F
 import numpy as np
 import itertools
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-class StandardScaler(object):
-    def __init__(self):
-        pass
+class StandardScaler:
+    def __init__(self) -> None:
+        self.mu = None
+        self.std = None
 
-    def fit(self, data):
-        """Runs two ops, one for assigning the mean of the data to the internal mean, and
-        another for assigning the standard deviation of the data to the internal standard deviation.
-        This function must be called within a 'with <session>.as_default()' block.
+    def fit(self, data: np.ndarray) -> None:
+        """
+        Calculate mean and standard deviation of the given data.
 
-        Arguments:
-        data (np.ndarray): A numpy array containing the input
-
-        Returns: None.
+        Args:
+            data (np.ndarray): Data to calculate mean and standard deviation from.
         """
         self.mu = np.mean(data, axis=0, keepdims=True)
         self.std = np.std(data, axis=0, keepdims=True)
         self.std[self.std < 1e-12] = 1.0
 
-    def transform(self, data):
-        """Transforms the input matrix data using the parameters of this scaler.
+    def transform(self, data: np.ndarray) -> np.ndarray:
+        """
+        Transforms the input array using the internal mean and standard deviation to mean = 0, std = 1.
+        Args:
+            data (np.ndarray):  Data to be transformed.
 
-        Arguments:
-        data (np.array): A numpy array containing the points to be transformed.
-
-        Returns: (np.array) The transformed dataset.
+        Returns:
+            np.ndarray: Transformed data.
         """
         return (data - self.mu) / self.std
 
     def inverse_transform(self, data):
-        """Undoes the transformation performed by this scaler.
+        """
+        Undoes the transformation performed by the scaler.
 
-        Arguments:
-        data (np.array): A numpy array containing the points to be transformed.
+        Args:
+            data (np.ndarray):  Data to be re-transformed.
 
-        Returns: (np.array) The transformed dataset.
+        Returns:
+            np.ndarray: Re-transformed data.
         """
         return self.std * data + self.mu
 
@@ -71,18 +71,36 @@ class EnsembleFC(nn.Module):
     ensemble_size: int
     weight: torch.Tensor
 
-    def __init__(self, in_features: int, out_features: int, ensemble_size: int, weight_decay: float = 0.,
-                 bias: bool = True) -> None:
+    def __init__(
+        self,
+        in_features: int,
+        out_features: int,
+        ensemble_size: int,
+        weight_decay: float = 0.0,
+        bias: bool = True
+    ) -> None:
+        """
+        Ensemble fully connected layer.
+
+        Args:
+            in_features (int): Amount of input features / input dimension.
+            out_features (int): Amount of output features / output dimension.
+            ensemble_size (int): Size of the ensemble.
+            weight_decay (float): Amount of weight decay to use. Default to 0.0.
+            bias (bool): Whether to use bias or not. Default to True.
+        """
         super(EnsembleFC, self).__init__()
         self.in_features = in_features
         self.out_features = out_features
         self.ensemble_size = ensemble_size
         self.weight = nn.Parameter(torch.Tensor(ensemble_size, in_features, out_features))
         self.weight_decay = weight_decay
+
         if bias:
             self.bias = nn.Parameter(torch.Tensor(ensemble_size, out_features))
         else:
             self.register_parameter('bias', None)
+
         self.reset_parameters()
 
     def reset_parameters(self) -> None:
@@ -230,6 +248,7 @@ class EnsembleDynamicsModel():
             out = self.ensemble_model(input)
             prediction[:, start_pos : start_pos + batch_size] = out.detach().cpu().numpy()
         self.ensemble_model.train()
+        prediction = np.median(prediction, axis=0)
 
         n_mc = 10
         prediction_mc = np.empty((n_mc, len(inputs), self.state_size + self.reward_size))
@@ -239,8 +258,9 @@ class EnsembleDynamicsModel():
                 out = self.ensemble_model(input)
                 out = out.detach().cpu().numpy()
                 prediction_mc[n, start_pos : start_pos + batch_size] = np.median(out, axis=0)
+        prediction_mc = np.median(prediction_mc, axis=0)
 
-        return np.median(prediction, axis=0), np.abs((np.median(prediction_mc, axis=0) - np.median(prediction, axis=0)) / np.median(prediction, axis=0))  # np.median(prediction_mc, axis=0)
+        return prediction, np.abs(prediction_mc - prediction) / prediction
 
     def save(self, filename):
         torch.save(self.ensemble_model.state_dict(), filename + "_unreal_ensemble.zip")

@@ -1,9 +1,10 @@
 import os
 import numpy as np
-import gym
 from mpi4py import MPI
 import random
 import torch
+
+import gym
 import shadowhand_gym
 
 from policy.her import HER

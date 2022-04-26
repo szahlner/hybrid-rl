@@ -162,7 +162,5 @@ results
 
 # files for now
 train_trifinger.py
-main_ensemble_virtual.py
 ddpg2.py
-unreal_env
 scripts

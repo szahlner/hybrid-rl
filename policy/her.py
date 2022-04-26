@@ -80,12 +80,8 @@ class HER:
         self.env = env
         self.env_params = env_params
 
-        if MPI.COMM_WORLD.Get_rank() == 0:
-            self.logger = logger
-            self.args.save_dir = os.path.join(self.logger.output_dir, self.args.save_dir)
-
-            # Setup logger
-            self._setup_logger()
+        # Setup logger
+        self.logger = logger
 
         # Create the networks
         self.actor_network = Actor(env_params).to(device)
@@ -119,6 +115,8 @@ class HER:
 
         # Create the dict for store the model
         if MPI.COMM_WORLD.Get_rank() == 0:
+            self.args.save_dir = os.path.join(self.logger.output_dir, self.args.save_dir)
+
             if not os.path.exists(self.args.save_dir):
                 os.mkdir(self.args.save_dir)
 
@@ -195,8 +193,8 @@ class HER:
                         obs_new = observation_new["observation"]
                         ag_new = observation_new["achieved_goal"]
 
-                        if MPI.COMM_WORLD.Get_rank() == 0:
-                            self.logger.store(Reward=reward)
+                        # if MPI.COMM_WORLD.Get_rank() == 0:
+                        self.logger.store(Reward=reward)
 
                         # Append rollouts
                         ep_obs.append(obs.copy())
@@ -344,21 +342,23 @@ class HER:
 
             # Start to do the evaluation
             success_rate = self._eval_agent()
+            self.logger.store(SuccessRate=success_rate)
+
+            self.logger.log_tabular("Epoch", epoch)
+            self.logger.log_tabular("Timesteps", ts)
+            self.logger.log_tabular("Time", time.time() - start_time)
+            self.logger.log_tabular("SuccessRate", with_min_and_max=True)
+            self.logger.log_tabular("ActorLoss", with_min_and_max=True)
+            self.logger.log_tabular("CriticLoss", with_min_and_max=True)
+            self.logger.log_tabular("Reward", with_min_and_max=True)
+
+            if self.args.model_based:
+                self.logger.store(WorldModelReplayBufferSize=self.world_model_buffer.n_transitions_stored)
+                self.logger.log_tabular("WorldModelReplayBufferSize", with_min_and_max=True)
+
+            self.logger.dump_tabular()
 
             if MPI.COMM_WORLD.Get_rank() == 0:
-                self.logger.log_tabular("Epoch", epoch)
-                self.logger.log_tabular("Timesteps", ts)
-                self.logger.log_tabular("Time", time.time() - start_time)
-                self.logger.log_tabular("SuccessRate", success_rate)
-                self.logger.log_tabular("ActorLoss", with_min_and_max=True)
-                self.logger.log_tabular("CriticLoss", with_min_and_max=True)
-                self.logger.log_tabular("Reward", with_min_and_max=True)
-
-                if self.args.model_based:
-                    self.logger.log_tabular("WorldModelReplayBufferSize", self.world_model_buffer.n_transitions_stored)
-
-                self.logger.dump_tabular()
-
                 file_path = os.path.join(self.args.save_dir, "model.pt")
                 torch.save(
                     [
@@ -508,11 +508,11 @@ class HER:
         sync_grads(self.critic_network)
         self.critic_optim.step()
 
-        if MPI.COMM_WORLD.Get_rank() == 0:
-            self.logger.store(
-                ActorLoss=actor_loss.item(),
-                CriticLoss=critic_loss.item(),
-            )
+        # if MPI.COMM_WORLD.Get_rank() == 0:
+        self.logger.store(
+            ActorLoss=actor_loss.item(),
+            CriticLoss=critic_loss.item(),
+        )
 
     # update the network
     def _unreal_update_network(self):
@@ -572,13 +572,6 @@ class HER:
         sync_grads(self.critic_network)
         self.critic_optim.step()
 
-    def _setup_logger(self):
-        self.logger.store(
-            ActorLoss=0,
-            CriticLoss=0,
-            Reward=0,
-        )
-
     # Do the evaluation
     def _eval_agent(self):
         total_success_rate = []
@@ -607,4 +600,5 @@ class HER:
         total_success_rate = np.array(total_success_rate)
         local_success_rate = np.mean(total_success_rate[:, -1])
         global_success_rate = MPI.COMM_WORLD.allreduce(local_success_rate, op=MPI.SUM)
-        return global_success_rate / MPI.COMM_WORLD.Get_size()
+        # global_success_rate /= MPI.COMM_WORLD.Get_size()
+        return local_success_rate  # global_success_rate / MPI.COMM_WORLD.Get_size()

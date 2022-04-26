@@ -4,8 +4,6 @@ import torch.nn as nn
 import numpy as np
 import itertools
 
-from numpy import ndarray
-
 from utils.mpi.mpi_utils import sync_grads, sync_networks, sync_bool_and
 
 
@@ -330,7 +328,7 @@ class DeterministicWorldModel:
         self,
         inputs: np.ndarray,
         batch_size: int = 1024,
-    ) -> Tuple[ndarray, ndarray]:
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Predicts the next observation and the confidence from the given input.
 

@@ -16,6 +16,7 @@ from utils.her.arguments import HerNamespace
 from utils.logger import EpochLogger
 
 from world_model.deterministic_world_model import DeterministicWorldModel
+from world_model.stochastic_world_model import StochasticWorldModel
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -122,7 +123,7 @@ class HER:
 
         # Model based section
         if self.args.model_based:
-            model_dim_chunk = 20  # self.args.model_dim_chunk
+            model_dim_chunk = self.args.model_dim_chunk
             output_dim = env_params["obs"] + env_params["goal"]
             self.model_chunks = [model_dim_chunk for _ in range(output_dim // model_dim_chunk)]
             if output_dim % model_dim_chunk != 0:
@@ -130,13 +131,24 @@ class HER:
 
             self.world_models = []
             for chunk in self.model_chunks:
-                self.world_models.append(
-                    DeterministicWorldModel(
-                        input_dim=env_params["obs"] + env_params["goal"] + env_params["action"],
-                        output_dim=chunk,
-                        network_dim=1,
+                if self.args.model_type == "deterministic":
+                    # Deterministic world model
+                    self.world_models.append(
+                        DeterministicWorldModel(
+                            input_dim=env_params["obs"] + env_params["goal"] + env_params["action"],
+                            output_dim=chunk,
+                            network_dim=1,
+                        )
                     )
-                )
+                else:
+                    # Stochstic world model
+                    self.world_models.append(
+                        StochasticWorldModel(
+                            input_dim=env_params["obs"] + env_params["goal"] + env_params["action"],
+                            output_dim=chunk,
+                            network_dim=1,
+                        )
+                    )
             self.model_chunks.insert(0, 0)
             self.model_chunks = np.cumsum(self.model_chunks).tolist()
 
@@ -152,7 +164,7 @@ class HER:
 
             # Create the replay buffer
             self.world_model_params = deepcopy(self.env_params)
-            self.world_model_params["max_timesteps"] = 5  # change max timesteps to rollout length
+            self.world_model_params["max_timesteps"] = self.args.model_max_rollout_timesteps  # 5  # change max timesteps to rollout length
             self.world_model_buffer = ReplayBuffer(
                 self.world_model_params,
                 self.args.buffer_size,
@@ -209,7 +221,7 @@ class HER:
                             )
 
                             if ts % self.args.model_training_freq == 0 and ts != 0:
-                                transitions = self.simple_world_model_replay_buffer.sample(10000)
+                                transitions = self.simple_world_model_replay_buffer.sample(self.args.model_n_training_transitions)  # 10000
 
                                 # Train chunked
                                 training_inputs = np.concatenate([transitions["obs"], transitions["ag"]], axis=-1)
@@ -224,7 +236,7 @@ class HER:
                                     self.world_models[n].train(training_inputs, tl)
 
                                 # Rollout
-                                n_transitions = 10000
+                                n_transitions = self.args.model_n_rollout_transitions  # 10000
                                 transitions = self.simple_world_model_replay_buffer.sample(n_transitions)
                                 world_model_obs = np.empty(
                                     (
@@ -280,7 +292,15 @@ class HER:
                                         diff[:, self.model_chunks[k]:self.model_chunks[k+1]] = diff_
                                         confidence[:, self.model_chunks[k]:self.model_chunks[k+1]] = confidence_
 
-                                    world_model_mask[:, n] = np.all(np.where(confidence < 1, True, False), axis=-1)
+                                    if self.args.model_type == "deterministic":
+                                        world_model_mask[:, n] = np.all(np.where(confidence < 1, True, False), axis=-1)
+                                    else:
+                                        sorted_idx = np.argsort(np.sum(confidence, axis=-1))
+                                        good_ones = int(len(sorted_idx) * self.args.model_stochastic_percentage)
+                                        confidence[sorted_idx[:good_ones]] = True
+                                        confidence[sorted_idx[good_ones:]] = False
+                                        world_model_mask[:, n] = np.all(confidence, axis=-1)
+
                                     world_model_obs[:, n + 1] = world_model_obs[:, n] + diff[:, :self.env_params["obs"]]
                                     world_model_ag[:, n + 1] = world_model_ag[:, n] + diff[:, self.env_params["obs"]:]
 

@@ -28,8 +28,14 @@ class HerNamespace(argparse.Namespace):
     demo_length: int
     num_rollouts_per_mpi: int
 
+    model_dim_chunk: int
+    model_type: str
     model_based: bool
     model_training_freq: int
+    model_max_rollout_timesteps: int
+    model_n_training_transitions: int
+    model_n_rollout_transitions: int
+    model_stochastic_percentage: float
 
 
 def get_args_her():
@@ -62,6 +68,12 @@ def get_args_her():
     parser.add_argument("--demo-length", type=int, default=20, help="the demo length")
     parser.add_argument("--num-rollouts-per-mpi", type=int, default=2, help="the rollouts per mpi")
 
+    parser.add_argument("--model-stochastic-percentage", type=float, default=1.0, help="percentage to take from confidence")
+    parser.add_argument("--model-n-training-transitions", type=int, default=10000, help="number of training transitions")
+    parser.add_argument("--model-n-rollout-transitions", type=int, default=10000, help="number of rollout transitions")
+    parser.add_argument("--model-max-rollout-timesteps", type=int, default=5, help="timesteps to perform rollout")
+    parser.add_argument("--model-dim-chunk", type=int, default=20, help="model dimension chunk")
+    parser.add_argument("--model-type", type=str, choices=["deterministic", "stochastic"], default="deterministic", help="model type")
     parser.add_argument("--model-based", action="store_true", help="if use model based acceleration")
     parser.add_argument("--model-training-freq", type=int, default=100, help="frequency of model training")
 

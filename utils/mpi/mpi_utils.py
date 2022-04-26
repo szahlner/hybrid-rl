@@ -57,10 +57,10 @@ def sync_networks(network):
         network: The network to be synced.
     """
     comm = MPI.COMM_WORLD
-    flat_params = _get_flat_params_or_grads(network, mode='params')
+    flat_params = _get_flat_params_or_grads(network, mode="params")
     comm.Bcast(flat_params, root=0)
     # set the flat params back to the network
-    _set_flat_params_or_grads(network, flat_params, mode='params')
+    _set_flat_params_or_grads(network, flat_params, mode="params")
 
 
 def sync_grads(network):
@@ -70,11 +70,11 @@ def sync_grads(network):
     Args:
         network: The network to be synced.
     """
-    flat_grads = _get_flat_params_or_grads(network, mode='grads')
+    flat_grads = _get_flat_params_or_grads(network, mode="grads")
     comm = MPI.COMM_WORLD
     global_grads = np.zeros_like(flat_grads)
     comm.Allreduce(flat_grads, global_grads, op=MPI.SUM)
-    _set_flat_params_or_grads(network, global_grads, mode='grads')
+    _set_flat_params_or_grads(network, global_grads, mode="grads")
 
 
 def sync_bool_and(bool_var):
@@ -105,7 +105,7 @@ def sync_bool_or(bool_var):
     return global_bool_var > 0
 
 
-def _get_flat_params_or_grads(network, mode='params'):
+def _get_flat_params_or_grads(network, mode="params"):
     """
     Get the flattened gradients or parameters from the network.
 
@@ -113,11 +113,11 @@ def _get_flat_params_or_grads(network, mode='params'):
         network: The network to be operated on.
         mode: Chose 'grad' or 'params'. Defaults to 'params'.
     """
-    attr = 'data' if mode == 'params' else 'grad'
+    attr = "data" if mode == "params" else "grad"
     return np.concatenate([getattr(param, attr).cpu().numpy().flatten() for param in network.parameters()])
 
 
-def _set_flat_params_or_grads(network, flat_params, mode='params'):
+def _set_flat_params_or_grads(network, flat_params, mode="params"):
     """
     Set the flattened gradients or parameters of the network.
 
@@ -126,7 +126,7 @@ def _set_flat_params_or_grads(network, flat_params, mode='params'):
         flat_params: The flattened gradients or parameters to be set.
         mode: Chose 'grad' or 'params'. Defaults to 'params'.
     """
-    attr = 'data' if mode == 'params' else 'grad'
+    attr = "data" if mode == "params" else "grad"
     # the pointer
     pointer = 0
     for param in network.parameters():

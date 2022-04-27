@@ -6,12 +6,12 @@ import torch
 
 import gym
 
-from policy.her_ddpg import HER
-from utils.her.arguments import get_args_her_ddpg, HerDdpgNamespace
+from policy.her_sac import HER
+from utils.her.arguments import get_args_her_sac, HerSacNamespace
 from utils.utils import get_env_params, prepare_logger
 
 
-def train(args: HerDdpgNamespace):
+def train(args: HerSacNamespace):
     # Environments imports
     if "ShadowHand" in args.env_name:
         import shadowhand_gym
@@ -53,7 +53,7 @@ if __name__ == "__main__":
     os.environ["IN_MPI"] = "1"
 
     # Get the params
-    args = get_args_her_ddpg()
+    args = get_args_her_sac()
 
     # Start loop
     train(args)

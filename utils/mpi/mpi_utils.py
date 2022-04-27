@@ -3,6 +3,9 @@ import numpy as np
 import torch
 
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
 def proc_id():
     """Get rank of calling process."""
     return MPI.COMM_WORLD.Get_rank()
@@ -75,6 +78,20 @@ def sync_grads(network):
     global_grads = np.zeros_like(flat_grads)
     comm.Allreduce(flat_grads, global_grads, op=MPI.SUM)
     _set_flat_params_or_grads(network, global_grads, mode="grads")
+
+
+def sync_scalar(scalar):
+    """
+    Sync scalar across the different cores.
+
+    Args:
+        scalar: The scalar to be synced.
+    """
+    local_scalar = scalar
+    comm = MPI.COMM_WORLD
+    global_scalar = np.zeros_like(local_scalar)
+    comm.Allreduce(local_scalar, global_scalar, op=MPI.SUM)
+    return global_scalar / comm.Get_size()
 
 
 def sync_bool_and(bool_var):

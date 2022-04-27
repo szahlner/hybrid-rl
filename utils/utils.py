@@ -1,13 +1,11 @@
 import os
-import numpy as np
-import torch
 import gym
 import time
 import datetime
 from typing import Union
 from mpi4py import MPI
 
-from utils.her.arguments import HerNamespace
+from utils.her.arguments import HerDdpgNamespace, HerSacNamespace
 from utils.ddpg.arguments import DdpgNamespace
 from utils.logger import EpochLogger
 
@@ -30,13 +28,15 @@ def get_env_params(env: Union[gym.Env, gym.GoalEnv]) -> dict:
     return params
 
 
-def prepare_logger(args: Union[DdpgNamespace, HerNamespace]) -> EpochLogger:
+def prepare_logger(args: Union[DdpgNamespace, HerDdpgNamespace, HerSacNamespace]) -> EpochLogger:
     log_dir = "./../logs"
     if not os.path.exists(log_dir) and MPI.COMM_WORLD.Get_rank() == 0:
         os.makedirs(log_dir)
 
-    if isinstance(args, HerNamespace):
-        agent = "HER"
+    if isinstance(args, HerSacNamespace):
+        agent = "HER+SAC"
+    elif isinstance(args, HerDdpgNamespace):
+        agent = "HER+DDPG"
     elif isinstance(args, DdpgNamespace):
         agent = "DDPG"
 

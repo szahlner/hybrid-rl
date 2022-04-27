@@ -434,6 +434,7 @@ class HER:
             self.logger.log_tabular("SuccessRate", with_min_and_max=True)
             self.logger.log_tabular("ActorLoss", with_min_and_max=True)
             self.logger.log_tabular("CriticLoss", with_min_and_max=True)
+            self.logger.log_tabular("AlphaLoss", with_min_and_max=True)
             self.logger.log_tabular("Reward", with_min_and_max=True)
 
             if self.args.model_based:

@@ -12,7 +12,7 @@ from utils.mpi.mpi_utils import sync_grads, sync_networks
 from utils.mpi.normalizer import Normalizer
 from utils.her.her_sampler import HerSampler
 from utils.her.replay_buffer import ReplayBuffer, SimpleReplayBuffer
-from utils.her.arguments import HerNamespace
+from utils.her.arguments import HerDdpgNamespace
 from utils.logger import EpochLogger
 
 from world_model.deterministic_world_model import DeterministicWorldModel
@@ -76,7 +76,7 @@ class Critic(nn.Module):
 
 
 class HER:
-    def __init__(self, args: HerNamespace, env: Union[gym.Env, gym.GoalEnv], env_params: dict, logger: EpochLogger):
+    def __init__(self, args: HerDdpgNamespace, env: Union[gym.Env, gym.GoalEnv], env_params: dict, logger: EpochLogger):
         self.args = args
         self.env = env
         self.env_params = env_params
@@ -412,7 +412,7 @@ class HER:
         return inputs
 
     # this function will choose action for the agent and do the exploration
-    def _select_actions(self, pi: torch.Tensor):
+    def _select_actions(self, pi: torch.Tensor) -> np.ndarray:
         action = pi.cpu().numpy().squeeze()
 
         # add the gaussian

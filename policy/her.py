@@ -295,17 +295,21 @@ class HER:
                                     if self.args.model_type == "deterministic":
                                         world_model_mask[:, n] = np.all(np.where(confidence < 1, True, False), axis=-1)
                                     else:
-                                        sorted_idx = np.argsort(np.sum(confidence, axis=-1))
-                                        good_ones = int(len(sorted_idx) * self.args.model_stochastic_percentage)
-                                        confidence[sorted_idx[:good_ones]] = True
-                                        confidence[sorted_idx[good_ones:]] = False
-                                        world_model_mask[:, n] = np.all(confidence, axis=-1)
+                                        world_model_mask[:, n] = np.sum(confidence, axis=-1)
 
                                     world_model_obs[:, n + 1] = world_model_obs[:, n] + diff[:, :self.env_params["obs"]]
                                     world_model_ag[:, n + 1] = world_model_ag[:, n] + diff[:, self.env_params["obs"]:]
 
                                 # Mark and select good ones
-                                mask = np.any(world_model_mask, axis=-1)
+                                if self.args.model_type == "deterministic":
+                                    mask = np.any(world_model_mask, axis=-1)
+                                else:
+                                    sorted_idx = np.argsort(np.sum(world_model_mask, axis=-1))
+                                    good_ones = int(len(sorted_idx) * self.args.model_stochastic_percentage)
+                                    world_model_mask[sorted_idx[:good_ones]] = True
+                                    world_model_mask[sorted_idx[good_ones:]] = False
+                                    mask = np.any(world_model_mask, axis=-1)
+
                                 world_model_obs = world_model_obs[mask]
                                 world_model_ag = world_model_ag[mask]
                                 world_model_g = world_model_g[mask]

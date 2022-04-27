@@ -29,7 +29,7 @@ epsilon = 1e-6
 
 
 # Initialize Policy weights
-def weights_init_(m):
+def init_weights(m):
     if isinstance(m, nn.Linear):
         torch.nn.init.xavier_uniform_(m.weight, gain=1)
         torch.nn.init.constant_(m.bias, 0)
@@ -58,6 +58,8 @@ class Critic(nn.Module):
         self.fc5 = nn.Linear(256, 256)
         self.fc6 = nn.Linear(256, 256)
         self.q_out_2 = nn.Linear(256, 1)
+
+        self.apply(init_weights)
 
     def forward(self, x: torch.Tensor, actions: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         x = torch.cat([x, actions / self.max_action], dim=1)
@@ -95,6 +97,8 @@ class Actor(nn.Module):
 
         self.mean_linear = nn.Linear(256, env_params["action"])
         self.log_std_linear = nn.Linear(256, env_params["action"])
+
+        self.apply(init_weights)
 
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         x = torch.relu(self.fc1(x))

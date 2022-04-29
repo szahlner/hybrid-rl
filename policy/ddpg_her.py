@@ -136,7 +136,7 @@ class DDPG:
                         )
                     )
                 else:
-                    # Stochstic world model
+                    # Staochstic world model
                     self.world_models.append(
                         StochasticWorldModel(
                             input_dim=env_params["obs"] + env_params["goal"] + env_params["action"],

@@ -39,6 +39,7 @@ def train(args: DdpgNamespace):
     # Get the environment parameters
     env_params = get_env_params(env)
 
+    # Flatten observations if necessary
     if env_params["goal"] > 0:
         env_params["obs"] += env_params["goal"]
         env_params["goal"] = 0

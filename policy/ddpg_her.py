@@ -10,7 +10,7 @@ from copy import deepcopy
 
 from utils.mpi.mpi_utils import sync_grads, sync_networks
 from utils.mpi.normalizer import Normalizer
-from utils.ddpg.replay_buffer import ReplayBuffer
+from utils.replay_buffer import ReplayBuffer
 from utils.ddpg.arguments import DdpgNamespace
 from utils.logger import EpochLogger
 

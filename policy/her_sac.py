@@ -550,9 +550,11 @@ class HER:
             min_target_q_value = torch.min(q1_next_value, q2_next_value) - self.alpha * obs_next_log_pi
             target_q_value = r_tensor + self.args.gamma * (min_target_q_value)
             target_q_value = target_q_value.detach()
+
             # clip the q value
-            clip_return = 1 / (1 - self.args.gamma)
-            target_q_value = torch.clamp(target_q_value, -clip_return, 0)
+            if self.args.clip_return:
+                clip_return = 1 / (1 - self.args.gamma)
+                target_q_value = torch.clamp(target_q_value, -clip_return, 0)
 
         q1, q2 = self.critic_network(inputs_norm_tensor, actions_tensor)
         q1_loss = F.mse_loss(q1, target_q_value)
@@ -627,9 +629,11 @@ class HER:
             min_target_q_value = torch.min(q1_next_value, q2_next_value) - self.alpha * obs_next_log_pi
             target_q_value = r_tensor + self.args.gamma * (min_target_q_value)
             target_q_value = target_q_value.detach()
+
             # clip the q value
-            clip_return = 1 / (1 - self.args.gamma)
-            target_q_value = torch.clamp(target_q_value, -clip_return, 0)
+            if self.args.clip_return:
+                clip_return = 1 / (1 - self.args.gamma)
+                target_q_value = torch.clamp(target_q_value, -clip_return, 0)
 
         q1, q2 = self.critic_network(inputs_norm_tensor, actions_tensor)
         q1_loss = F.mse_loss(q1, target_q_value)

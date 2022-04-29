@@ -9,13 +9,13 @@ class DdpgNamespace(argparse.Namespace):
     save_interval: int
     seed: int
     num_workers: int
-    replay_strategy: str
-    clip_return: float
+    # replay_strategy: str
+    clip_return: bool
     save_dir: str
     noise_eps: float
     random_eps: float
     buffer_size: int
-    replay_k: int
+    # replay_k: int
     clip_obs: float
     batch_size: int
     gamma: float
@@ -50,7 +50,7 @@ def get_args_ddpg_her():
     parser.add_argument("--seed", type=int, default=123, help="random seed")
     parser.add_argument("--num-workers", type=int, default=1, help="the number of cpus to collect samples")
     # parser.add_argument("--replay-strategy", type=str, default="future", help="the HER strategy")
-    # parser.add_argument("--clip-return", type=float, default=50, help="if clip the returns")
+    parser.add_argument("--clip-return", action="store_false", help="if clip the returns")
     parser.add_argument("--save-dir", type=str, default="saved_models", help="the path to save the models")
     parser.add_argument("--noise-eps", type=float, default=0.2, help="noise eps")
     parser.add_argument("--random-eps", type=float, default=0.3, help="random eps")

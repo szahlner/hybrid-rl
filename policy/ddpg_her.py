@@ -15,6 +15,7 @@ from utils.ddpg.arguments import DdpgNamespace
 from utils.logger import EpochLogger
 
 from world_model.deterministic_world_model import DeterministicWorldModel
+from world_model.stochastic_world_model import StochasticWorldModel
 
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -79,12 +80,8 @@ class DDPG:
         self.env = env
         self.env_params = env_params
 
-        if MPI.COMM_WORLD.Get_rank() == 0:
-            self.logger = logger
-            self.args.save_dir = os.path.join(self.logger.output_dir, self.args.save_dir)
-
-            # Setup logger
-            self._setup_logger()
+        # Setup logger
+        self.logger = logger
 
         # Create the networks
         self.actor_network = Actor(env_params).to(device)
@@ -114,12 +111,14 @@ class DDPG:
 
         # Create the dict for store the model
         if MPI.COMM_WORLD.Get_rank() == 0:
+            self.args.save_dir = os.path.join(self.logger.output_dir, self.args.save_dir)
+
             if not os.path.exists(self.args.save_dir):
                 os.mkdir(self.args.save_dir)
 
         # Model based section
         if self.args.model_based:
-            model_dim_chunk = 20  # self.args.model_dim_chunk
+            model_dim_chunk = self.args.model_dim_chunk
             output_dim = env_params["obs"] + env_params["reward"]
             self.model_chunks = [model_dim_chunk for _ in range(output_dim // model_dim_chunk)]
             if output_dim % model_dim_chunk != 0:
@@ -127,13 +126,24 @@ class DDPG:
 
             self.world_models = []
             for chunk in self.model_chunks:
-                self.world_models.append(
-                    DeterministicWorldModel(
-                        input_dim=env_params["obs"] + env_params["goal"] + env_params["action"],
-                        output_dim=chunk,
-                        network_dim=1,
+                if self.args.model_type == "deterministic":
+                    # Deterministic world model
+                    self.world_models.append(
+                        DeterministicWorldModel(
+                            input_dim=env_params["obs"] + env_params["goal"] + env_params["action"],
+                            output_dim=chunk,
+                            network_dim=1,
+                        )
                     )
-                )
+                else:
+                    # Stochstic world model
+                    self.world_models.append(
+                        StochasticWorldModel(
+                            input_dim=env_params["obs"] + env_params["goal"] + env_params["action"],
+                            output_dim=chunk,
+                            network_dim=1,
+                        )
+                    )
             self.model_chunks.insert(0, 0)
             self.model_chunks = np.cumsum(self.model_chunks).tolist()
 
@@ -142,7 +152,7 @@ class DDPG:
 
             # Create the replay buffer
             self.world_model_params = deepcopy(self.env_params)
-            self.world_model_params["max_timesteps"] = 5  # change max timesteps to rollout length
+            self.world_model_params["max_timesteps"] = self.args.model_max_rollout_timesteps  # change max timesteps to rollout length
             self.world_model_buffer = ReplayBuffer(self.world_model_params, self.args.buffer_size)
 
     def learn(self):
@@ -171,8 +181,8 @@ class DDPG:
                         # Feed the actions into the environment
                         obs_new, reward, done, info = self.env.step(action)
 
-                        if MPI.COMM_WORLD.Get_rank() == 0:
-                            self.logger.store(Reward=reward)
+                        # if MPI.COMM_WORLD.Get_rank() == 0:
+                        self.logger.store(Reward=reward)
 
                         # Append rollouts
                         self.buffer.store(
@@ -198,7 +208,7 @@ class DDPG:
                             )
 
                             if ts % self.args.model_training_freq == 0 and ts != 0:
-                                transitions = self.simple_world_model_replay_buffer.sample(10000)
+                                transitions = self.simple_world_model_replay_buffer.sample(self.args.model_n_training_transitions)  # 10000
 
                                 # Train chunked
                                 training_inputs = transitions["obs"]
@@ -213,7 +223,7 @@ class DDPG:
                                     self.world_models[n].train(training_inputs, tl)
 
                                 # Rollout
-                                n_transitions = 10000
+                                n_transitions = self.args.model_n_rollout_transitions  # 10000
                                 transitions = self.simple_world_model_replay_buffer.sample(n_transitions)
                                 world_model_obs = np.empty(
                                     (
@@ -261,12 +271,24 @@ class DDPG:
                                         diff[:, self.model_chunks[k]:self.model_chunks[k+1]] = diff_
                                         confidence[:, self.model_chunks[k]:self.model_chunks[k+1]] = confidence_
 
-                                    world_model_mask[:, n] = np.all(np.where(confidence < 1, True, False), axis=-1)
+                                    if self.args.model_type == "deterministic":
+                                        world_model_mask[:, n] = np.all(np.where(confidence < 1, True, False), axis=-1)
+                                    else:
+                                        world_model_mask[:, n] = np.sum(confidence, axis=-1)
+
                                     world_model_obs[:, n + 1] = world_model_obs[:, n] + diff[:, :self.env_params["obs"]]
                                     world_model_r[:, n] = diff[:, self.env_params["obs"]:]
 
                                 # Mark and select good ones
-                                mask = np.any(world_model_mask, axis=-1)
+                                if self.args.model_type == "deterministic":
+                                    mask = np.any(world_model_mask, axis=-1)
+                                else:
+                                    sorted_idx = np.argsort(np.sum(world_model_mask, axis=-1))
+                                    good_ones = int(len(sorted_idx) * self.args.model_stochastic_percentage)
+                                    world_model_mask[sorted_idx[:good_ones]] = True
+                                    world_model_mask[sorted_idx[good_ones:]] = False
+                                    mask = np.any(world_model_mask, axis=-1)
+
                                 world_model_obs = world_model_obs[mask]
                                 world_model_r = world_model_r[mask]
                                 world_model_actions = world_model_actions[mask]
@@ -309,21 +331,23 @@ class DDPG:
 
             # Start to do the evaluation
             success_rate = self._eval_agent()
+            self.logger.store(SuccessRate=success_rate)
+
+            self.logger.log_tabular("Epoch", epoch)
+            self.logger.log_tabular("Timesteps", ts)
+            self.logger.log_tabular("Time", time.time() - start_time)
+            self.logger.log_tabular("SuccessRate", with_min_and_max=True)
+            self.logger.log_tabular("ActorLoss", with_min_and_max=True)
+            self.logger.log_tabular("CriticLoss", with_min_and_max=True)
+            self.logger.log_tabular("Reward", with_min_and_max=True)
+
+            if self.args.model_based:
+                self.logger.store(WorldModelReplayBufferSize=self.world_model_buffer.n_transitions_stored)
+                self.logger.log_tabular("WorldModelReplayBufferSize", with_min_and_max=True)
+
+            self.logger.dump_tabular()
 
             if MPI.COMM_WORLD.Get_rank() == 0:
-                self.logger.log_tabular("Epoch", epoch)
-                self.logger.log_tabular("Timesteps", ts)
-                self.logger.log_tabular("Time", time.time() - start_time)
-                self.logger.log_tabular("SuccessRate", success_rate)
-                self.logger.log_tabular("ActorLoss", with_min_and_max=True)
-                self.logger.log_tabular("CriticLoss", with_min_and_max=True)
-                self.logger.log_tabular("Reward", with_min_and_max=True)
-
-                if self.args.model_based:
-                    self.logger.log_tabular("WorldModelReplayBufferSize", self.world_model_buffer.n_transitions_stored)
-
-                self.logger.dump_tabular()
-
                 file_path = os.path.join(self.args.save_dir, "model.pt")
                 torch.save(
                     [
@@ -440,11 +464,11 @@ class DDPG:
         sync_grads(self.critic_network)
         self.critic_optim.step()
 
-        if MPI.COMM_WORLD.Get_rank() == 0:
-            self.logger.store(
-                ActorLoss=actor_loss.item(),
-                CriticLoss=critic_loss.item(),
-            )
+        # if MPI.COMM_WORLD.Get_rank() == 0:
+        self.logger.store(
+            ActorLoss=actor_loss.item(),
+            CriticLoss=critic_loss.item(),
+        )
 
     # update the network
     def _unreal_update_network(self):
@@ -500,13 +524,6 @@ class DDPG:
         sync_grads(self.critic_network)
         self.critic_optim.step()
 
-    def _setup_logger(self):
-        self.logger.store(
-            ActorLoss=0,
-            CriticLoss=0,
-            Reward=0,
-        )
-
     # Do the evaluation
     def _eval_agent(self):
         total_success_rate = []
@@ -530,5 +547,6 @@ class DDPG:
 
         total_success_rate = np.array(total_success_rate)
         local_success_rate = np.mean(total_success_rate[:, -1])
-        global_success_rate = MPI.COMM_WORLD.allreduce(local_success_rate, op=MPI.SUM)
-        return global_success_rate / MPI.COMM_WORLD.Get_size()
+        # global_success_rate = MPI.COMM_WORLD.allreduce(local_success_rate, op=MPI.SUM)
+        # global_success_rate /= MPI.COMM_WORLD.Get_size()
+        return local_success_rate  # global_success_rate / MPI.COMM_WORLD.Get_size()

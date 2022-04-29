@@ -1,20 +1,31 @@
 import os
 import numpy as np
-import gym
-from gym.wrappers import FilterObservation, FlattenObservation
 from mpi4py import MPI
 import random
 import torch
-import shadowhand_gym
 
-from policy.ddpg import DDPG
-from utils.ddpg.arguments import get_args_her, DdpgNamespace
+import gym
+from gym.wrappers import FilterObservation, FlattenObservation
+
+from policy.ddpg_her import DDPG
+from utils.ddpg.arguments import get_args_ddpg_her, DdpgNamespace
 from utils.utils import get_env_params, prepare_logger
 
 
 def train(args: DdpgNamespace):
+    # Environments imports
+    if "ShadowHand" in args.env_name:
+        import shadowhand_gym
+    if "TriFinger" in args.env_name:
+        import trifinger_simulation
+    if "parking" in args.env_name:
+        import highway_env
+
     # Create the environment
     env = gym.make(args.env_name)
+
+    if args.env_name == "parking-v0":
+        env._max_episode_steps = 50
 
     # Set random seeds for reproduce
     env.seed(args.seed + MPI.COMM_WORLD.Get_rank())
@@ -50,7 +61,7 @@ if __name__ == '__main__':
     os.environ['IN_MPI'] = '1'
 
     # Get the params
-    args = get_args_her()
+    args = get_args_ddpg_her()
 
     # Start loop
     train(args)

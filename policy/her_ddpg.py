@@ -623,6 +623,6 @@ class HER:
 
         total_success_rate = np.array(total_success_rate)
         local_success_rate = np.mean(total_success_rate[:, -1])
-        global_success_rate = MPI.COMM_WORLD.allreduce(local_success_rate, op=MPI.SUM)
+        # global_success_rate = MPI.COMM_WORLD.allreduce(local_success_rate, op=MPI.SUM)
         # global_success_rate /= MPI.COMM_WORLD.Get_size()
         return local_success_rate  # global_success_rate / MPI.COMM_WORLD.Get_size()

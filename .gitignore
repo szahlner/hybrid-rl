@@ -163,4 +163,3 @@ results
 # files for now
 train_trifinger.py
 ddpg2.py
-scripts

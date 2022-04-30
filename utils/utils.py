@@ -55,8 +55,19 @@ def prepare_logger(args: Union[DdpgNamespace, SacNamespace, HerDdpgNamespace, He
     }
 
     logger = EpochLogger(**logger_kwargs)
+
+    # Sort for world model arguments
+    config_args = {}
+    world_model_args = {}
+    for key, value in vars(args).items():
+        if "model" in key:
+            world_model_args[key] = value
+        else:
+            config_args[key] = value
+
     config_kwargs = {
-        "config": args,
+        "config": config_args,
+        "world_model": world_model_args,
     }
 
     logger.save_config(config_kwargs)

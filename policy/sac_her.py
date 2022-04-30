@@ -480,7 +480,7 @@ class SAC:
             actions_next, obs_next_log_pi, _ = self.actor_network.sample(inputs_next_norm_tensor)
             q1_next_value, q2_next_value = self.critic_target_network(inputs_next_norm_tensor, actions_next)
             min_target_q_value = torch.min(q1_next_value, q2_next_value) - self.alpha * obs_next_log_pi
-            target_q_value = r_tensor + self.args.gamma * (min_target_q_value)
+            target_q_value = r_tensor + self.args.gamma * min_target_q_value
             target_q_value = target_q_value.detach()
 
             # clip the q value
@@ -555,7 +555,7 @@ class SAC:
             actions_next, obs_next_log_pi, _ = self.actor_network.sample(inputs_next_norm_tensor)
             q1_next_value, q2_next_value = self.critic_target_network(inputs_next_norm_tensor, actions_next)
             min_target_q_value = torch.min(q1_next_value, q2_next_value) - self.alpha * obs_next_log_pi
-            target_q_value = r_tensor + self.args.gamma * (min_target_q_value)
+            target_q_value = r_tensor + self.args.gamma * min_target_q_value
             target_q_value = target_q_value.detach()
 
             # clip the q value

@@ -156,7 +156,6 @@ class DDPG:
         train the network
 
         """
-        ts = 0  # timesteps
         start_time = time.time()
         obs = self.env.reset()
 

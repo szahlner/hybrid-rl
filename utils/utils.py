@@ -6,8 +6,8 @@ from typing import Union
 from mpi4py import MPI
 
 from utils.her.arguments import HerDdpgNamespace, HerSacNamespace
-from utils.ddpg.arguments import DdpgNamespace
-from utils.sac.arguments import SacNamespace
+from utils.ddpg.arguments import DdpgNamespace, DdpgHerNamespace
+from utils.sac.arguments import SacNamespace, SacHerNamespace
 from utils.logger import EpochLogger
 
 
@@ -29,7 +29,7 @@ def get_env_params(env: Union[gym.Env, gym.GoalEnv]) -> dict:
     return params
 
 
-def prepare_logger(args: Union[DdpgNamespace, SacNamespace, HerDdpgNamespace, HerSacNamespace]) -> EpochLogger:
+def prepare_logger(args: Union[DdpgNamespace, DdpgHerNamespace, SacNamespace, SacHerNamespace, HerDdpgNamespace, HerSacNamespace]) -> EpochLogger:
     log_dir = "./../logs"
     if not os.path.exists(log_dir) and MPI.COMM_WORLD.Get_rank() == 0:
         os.makedirs(log_dir)
@@ -38,9 +38,9 @@ def prepare_logger(args: Union[DdpgNamespace, SacNamespace, HerDdpgNamespace, He
         agent = "HER+SAC"
     elif isinstance(args, HerDdpgNamespace):
         agent = "HER+DDPG"
-    elif isinstance(args, DdpgNamespace):
+    elif isinstance(args, DdpgHerNamespace) or isinstance(args, DdpgNamespace):
         agent = "DDPG"
-    elif isinstance(args, SacNamespace):
+    elif isinstance(args, SacHerNamespace) or isinstance(args, SacNamespace):
         agent = "SAC"
 
     log_dir = os.path.join(

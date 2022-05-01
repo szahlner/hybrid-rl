@@ -1,7 +1,7 @@
 import argparse
 
 
-class DdpgNamespace(argparse.Namespace):
+class DdpgHerNamespace(argparse.Namespace):
     env_name: str
     n_epochs: int
     n_cycles: int
@@ -67,6 +67,71 @@ def get_args_ddpg_her():
     parser.add_argument("--clip-range", type=float, default=5, help="the clip range")
     parser.add_argument("--demo-length", type=int, default=20, help="the demo length")
     parser.add_argument("--num-rollouts-per-mpi", type=int, default=2, help="the rollouts per mpi")
+
+    # World model
+    parser.add_argument("--model-stochastic-percentage", type=float, default=1.0, help="percentage to take from confidence")
+    parser.add_argument("--model-n-training-transitions", type=int, default=10000, help="number of training transitions")
+    parser.add_argument("--model-n-rollout-transitions", type=int, default=10000, help="number of rollout transitions")
+    parser.add_argument("--model-max-rollout-timesteps", type=int, default=5, help="timesteps to perform rollout")
+    parser.add_argument("--model-dim-chunk", type=int, default=20, help="model dimension chunk")
+    parser.add_argument("--model-type", type=str, choices=["deterministic", "stochastic"], default="deterministic", help="model type")
+    parser.add_argument("--model-based", action="store_true", help="if use model based acceleration")
+    parser.add_argument("--model-training-freq", type=int, default=100, help="frequency of model training")
+
+    args = parser.parse_args(namespace=DdpgHerNamespace())
+
+    return args
+
+
+class DdpgNamespace(argparse.Namespace):
+    env_name: str
+    start_timesteps: int
+    max_timesteps: int
+    eval_freq: int
+    exploration_noise: float
+    batch_size: int
+    gamma: float
+    polyak: float
+    policy_freq: int
+    noise_clip: float
+    policy_freq: int
+    seed: int
+    save_dir: str
+    buffer_size: int
+    lr_actor: float
+    lr_critic: float
+    n_test_rollouts: int
+
+    model_dim_chunk: int
+    model_type: str
+    model_based: bool
+    model_training_freq: int
+    model_max_rollout_timesteps: int
+    model_n_training_transitions: int
+    model_n_rollout_transitions: int
+    model_stochastic_percentage: float
+
+
+def get_args_ddpg():
+    parser = argparse.ArgumentParser()
+
+    # the environment setting
+    parser.add_argument("--env-name", type=str, default="FetchReach-v1", help="the environment name")
+    parser.add_argument("--start-timesteps", default=0, type=int, help="Time steps initial random policy is used")
+    parser.add_argument("--eval-freq", default=100, type=int, help="How often (time steps) we evaluate")
+    parser.add_argument("--max-timesteps", default=1e6, type=int, help="Max time steps to run environment")
+    parser.add_argument("--exploration-noise", default=0.1, help="Std of Gaussian exploration noise")
+    parser.add_argument("--gamma", default=0.99, help="Discount factor")
+    parser.add_argument("--polyak", default=0.95, help="Target network update rate")
+    parser.add_argument("--noise-clip", default=0.5, help="Range to clip target policy noise")
+    parser.add_argument("--policy-freq", default=2, type=int, help="Frequency of delayed policy updates")
+    parser.add_argument("--seed", type=int, default=123, help="random seed")
+    parser.add_argument("--save-dir", type=str, default="saved_models", help="the path to save the models")
+    parser.add_argument("--buffer-size", type=int, default=int(1e6), help="the size of the buffer")
+    parser.add_argument("--batch-size", type=int, default=256, help="the sample batch size")
+    parser.add_argument("--lr-actor", type=float, default=0.001, help="the learning rate of the actor")
+    parser.add_argument("--lr-critic", type=float, default=0.001, help="the learning rate of the critic")
+    parser.add_argument("--n-test-rollouts", type=int, default=10, help="the number of tests")
 
     # World model
     parser.add_argument("--model-stochastic-percentage", type=float, default=1.0, help="percentage to take from confidence")

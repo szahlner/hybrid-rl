@@ -7,12 +7,12 @@ import torch
 import gym
 from gym.wrappers import FilterObservation, FlattenObservation
 
-from policy.ddpg_her import DDPG
-from utils.ddpg.arguments import get_args_ddpg_her, DdpgHerNamespace
+from policy.ddpg import DDPG
+from utils.ddpg.arguments import get_args_ddpg, DdpgNamespace
 from utils.utils import get_env_params, prepare_logger
 
 
-def train(args: DdpgHerNamespace):
+def train(args: DdpgNamespace):
     # Environments imports
     if "ShadowHand" in args.env_name:
         import shadowhand_gym
@@ -62,7 +62,7 @@ if __name__ == '__main__':
     os.environ['IN_MPI'] = '1'
 
     # Get the params
-    args = get_args_ddpg_her()
+    args = get_args_ddpg()
 
     # Start loop
     train(args)

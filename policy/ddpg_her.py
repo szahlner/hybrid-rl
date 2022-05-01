@@ -11,7 +11,7 @@ from copy import deepcopy
 from utils.mpi.mpi_utils import sync_grads, sync_networks
 from utils.mpi.normalizer import Normalizer
 from utils.replay_buffer import ReplayBuffer
-from utils.ddpg.arguments import DdpgNamespace
+from utils.ddpg.arguments import DdpgHerNamespace
 from utils.logger import EpochLogger
 
 from world_model.deterministic_world_model import DeterministicWorldModel
@@ -75,7 +75,7 @@ class Critic(nn.Module):
 
 
 class DDPG:
-    def __init__(self, args: DdpgNamespace, env: Union[gym.Env, gym.GoalEnv], env_params: dict, logger: EpochLogger):
+    def __init__(self, args: DdpgHerNamespace, env: Union[gym.Env, gym.GoalEnv], env_params: dict, logger: EpochLogger):
         self.args = args
         self.env = env
         self.env_params = env_params

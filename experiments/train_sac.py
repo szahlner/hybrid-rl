@@ -7,12 +7,12 @@ import torch
 import gym
 from gym.wrappers import FilterObservation, FlattenObservation
 
-from policy.sac_her import SAC
-from utils.sac.arguments import get_args_sac_her, SacHerNamespace
+from policy.sac import SAC
+from utils.sac.arguments import get_args_sac, SacNamespace
 from utils.utils import get_env_params, prepare_logger
 
 
-def train(args: SacHerNamespace):
+def train(args: SacNamespace):
     # Environments imports
     if "ShadowHand" in args.env_name:
         import shadowhand_gym
@@ -55,14 +55,14 @@ def train(args: SacHerNamespace):
     agent.learn()
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     # MPI configuration
-    os.environ["OMP_NUM_THREADS"] = "1"
-    os.environ["MKL_NUM_THREADS"] = "1"
-    os.environ["IN_MPI"] = "1"
+    os.environ['OMP_NUM_THREADS'] = '1'
+    os.environ['MKL_NUM_THREADS'] = '1'
+    os.environ['IN_MPI'] = '1'
 
     # Get the params
-    args = get_args_sac_her()
+    args = get_args_sac()
 
     # Start loop
     train(args)

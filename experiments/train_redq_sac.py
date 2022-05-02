@@ -184,6 +184,7 @@ def redq_sac(env_name, seed=0, epochs='mbpo', steps_per_epoch=1000 // 20,
             logger.log_tabular('EpLen', average_only=True)
             logger.log_tabular('TestEpRet', with_min_and_max=True)
             logger.log_tabular('TestEpLen', average_only=True)
+            logger.log_tabular('SuccessRate', with_min_and_max=True)
             logger.log_tabular('Q1Vals', with_min_and_max=True)
             logger.log_tabular('LossQ1', average_only=True)
             logger.log_tabular('LogPi', with_min_and_max=True)

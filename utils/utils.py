@@ -43,6 +43,11 @@ def prepare_logger(args: Union[DdpgNamespace, DdpgHerNamespace, SacNamespace, Sa
     elif isinstance(args, SacHerNamespace) or isinstance(args, SacNamespace):
         agent = "SAC"
 
+    if args.model_based and args.model_type == "deterministic":
+        agent = f"{agent}+DWM"
+    elif args.model_based and args.model_type == "stochastic":
+        agent = f"{agent}+SWM"
+
     log_dir = os.path.join(
         log_dir,
         f"{agent}_{args.env_name}_{datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%dT%H-%M-%S')}"

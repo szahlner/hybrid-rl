@@ -161,7 +161,10 @@ class SAC:
 
         # Entropy tuning
         if self.args.automatic_entropy_tuning:
-            self.target_entropy = -torch.prod(torch.Tensor(self.env.action_space.shape).to(device)).item()
+            if self.args.target_entropy is not None:
+                self.target_entropy = self.args.target_entropy
+            else:
+                self.target_entropy = -torch.prod(torch.Tensor(self.env.action_space.shape).to(device)).item()
             self.log_alpha = torch.zeros(1, requires_grad=True, device=device)
             self.alpha_optim = torch.optim.Adam([self.log_alpha], lr=args.lr_alpha)
 

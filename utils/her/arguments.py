@@ -43,6 +43,7 @@ class HerSacNamespace(HerDdpgNamespace):
     alpha: float
     lr_alpha: float
     automatic_entropy_tuning: bool
+    target_entropy: float
 
 
 def get_args_her_ddpg():
@@ -134,6 +135,7 @@ def get_args_her_sac():
     parser.add_argument("--alpha", type=float, default=0.2, help="Temperature parameter α determines the relative importance of the entropy term against the reward (default: 0.2)")
     parser.add_argument("--lr-alpha", type=float, default=0.001, help="the learning rate of the alpha")
     parser.add_argument("--automatic-entropy-tuning", action="store_true", help="Automaically adjust α (default: False)")
+    parser.add_argument("--target-entropy", type=float, help="Target entropy")
 
     args = parser.parse_args(namespace=HerSacNamespace())
 

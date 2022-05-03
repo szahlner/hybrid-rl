@@ -135,11 +135,11 @@ def get_args_sac():
     parser.add_argument("--clip-return", action="store_false", help="if clip the returns")
     parser.add_argument("--save-dir", type=str, default="saved_models", help="the path to save the models")
     parser.add_argument("--buffer-size", type=int, default=int(1e6), help="the size of the buffer")
-    parser.add_argument("--batch-size", type=int, default=256, help="the sample batch size")
+    parser.add_argument("--batch-size", type=int, default=100, help="the sample batch size")
     parser.add_argument("--gamma", type=float, default=0.98, help="the discount factor")
     parser.add_argument("--lr-actor", type=float, default=0.001, help="the learning rate of the actor")
     parser.add_argument("--lr-critic", type=float, default=0.001, help="the learning rate of the critic")
-    parser.add_argument("--polyak", type=float, default=0.95, help="the average coefficient")
+    parser.add_argument("--polyak", type=float, default=0.98, help="the average coefficient")
     parser.add_argument("--policy-freq", default=2, type=int, help="Frequency of delayed policy updates")
     parser.add_argument("--n-test-rollouts", type=int, default=10, help="the number of tests")
 

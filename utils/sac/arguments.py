@@ -127,7 +127,7 @@ def get_args_sac():
     # the environment setting
     parser.add_argument("--env-name", type=str, default="FetchReach-v1", help="the environment name")
     parser.add_argument("--start-timesteps", default=0, type=int, help="Time steps initial random policy is used")
-    parser.add_argument("--eval-freq", default=100, type=int, help="How often (time steps) we evaluate")
+    parser.add_argument("--eval-freq", default=5000, type=int, help="How often (time steps) we evaluate")
     parser.add_argument("--max-timesteps", default=1e6, type=int, help="Max time steps to run environment")
     parser.add_argument("--n-batches", type=int, default=40, help="the times to update the network")
     parser.add_argument("--seed", type=int, default=123, help="random seed")

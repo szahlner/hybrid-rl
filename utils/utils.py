@@ -15,7 +15,7 @@ def get_env_params(env: Union[gym.Env, gym.GoalEnv]) -> dict:
     obs = env.reset()
 
     params = {
-        "obs": obs["observation"].shape[0],
+        "obs": 0,
         "action": env.action_space.shape[0],
         "action_max": env.action_space.high[0],
         "max_timesteps": env._max_episode_steps,
@@ -24,7 +24,10 @@ def get_env_params(env: Union[gym.Env, gym.GoalEnv]) -> dict:
     }
 
     if isinstance(obs, dict):
+        params["obs"] = obs["observation"].shape[0]
         params["goal"] = obs["desired_goal"].shape[0]
+    else:
+        params["obs"] = env.observation_space.shape[0]
 
     return params
 

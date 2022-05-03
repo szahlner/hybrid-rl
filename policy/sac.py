@@ -545,8 +545,8 @@ class SAC:
                 obs, reward, done, _ = self.env.step(actions)
                 per_reward.append(reward)
 
-            total_reward.append(per_reward)
+            total_reward.append(sum(per_reward))
 
-        total_reward = np.array(total_reward)
-        local_reward = np.mean(total_reward[:, -1])
+        # total_reward = np.array(total_reward)
+        local_reward = np.mean(total_reward)
         return local_reward

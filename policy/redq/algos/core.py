@@ -283,11 +283,11 @@ def test_agent(agent, test_env, max_ep_len, logger, n_eval=1):
             ep_ret += r
             ep_len += 1
         ep_return_list[j] = ep_ret
-        total_success_rate.append(per_success_rate)
+        total_success_rate.append(sum(per_success_rate))
         if logger is not None:
             logger.store(TestEpRet=ep_ret, TestEpLen=ep_len)
-    total_success_rate = np.array(total_success_rate)
-    local_success_rate = np.mean(total_success_rate[:, -1])
+    # total_success_rate = np.array(total_success_rate)
+    local_success_rate = np.mean(total_success_rate)
     if logger is not None:
         logger.store(SuccessRate=local_success_rate)
     return ep_return_list

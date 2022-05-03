@@ -391,6 +391,7 @@ class SAC:
                 self.logger.log_tabular("Time", time.time() - start_time)
                 self.logger.log_tabular("ActorLoss", with_min_and_max=True)
                 self.logger.log_tabular("CriticLoss", with_min_and_max=True)
+                self.logger.log_tabular("AlphaLoss", with_min_and_max=True)
                 self.logger.log_tabular("EpisodeReward", with_min_and_max=True)
                 self.logger.log_tabular("Reward", with_min_and_max=True)
 

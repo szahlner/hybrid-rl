@@ -322,7 +322,7 @@ class SAC:
                                     with torch.no_grad():
                                         input_tensor = self._preproc_inputs(world_model_obs[:, n])
                                         actions_tensor, _, _ = self.actor_network.sample(input_tensor)
-                                        world_model_actions[:, n] = self._select_actions(actions_tensor)
+                                        world_model_actions[:, n] = actions_tensor.cpu().numpy().squeeze()
 
                                     diff = np.empty((n_transitions, self.env_params["obs"] + self.env_params["reward"]))
                                     confidence = np.empty(
@@ -407,6 +407,7 @@ class SAC:
             self.logger.log_tabular("SuccessRate", with_min_and_max=True)
             self.logger.log_tabular("ActorLoss", with_min_and_max=True)
             self.logger.log_tabular("CriticLoss", with_min_and_max=True)
+            self.logger.log_tabular("AlphaLoss", with_min_and_max=True)
             self.logger.log_tabular("Reward", with_min_and_max=True)
 
             if self.args.model_based:

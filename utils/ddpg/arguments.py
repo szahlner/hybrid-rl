@@ -93,7 +93,6 @@ class DdpgNamespace(argparse.Namespace):
     gamma: float
     polyak: float
     policy_freq: int
-    noise_clip: float
     policy_freq: int
     seed: int
     save_dir: str
@@ -117,20 +116,19 @@ def get_args_ddpg():
 
     # the environment setting
     parser.add_argument("--env-name", type=str, default="FetchReach-v1", help="the environment name")
-    parser.add_argument("--start-timesteps", default=0, type=int, help="Time steps initial random policy is used")
+    parser.add_argument("--start-timesteps", default=5000, type=int, help="Time steps initial random policy is used")
     parser.add_argument("--eval-freq", default=5000, type=int, help="How often (time steps) we evaluate")
     parser.add_argument("--max-timesteps", default=1e6, type=int, help="Max time steps to run environment")
     parser.add_argument("--exploration-noise", default=0.1, help="Std of Gaussian exploration noise")
     parser.add_argument("--gamma", type=float, default=0.99, help="Discount factor")
-    parser.add_argument("--polyak", type=float, default=0.98, help="Target network update rate")
-    parser.add_argument("--noise-clip", default=0.5, help="Range to clip target policy noise")
-    parser.add_argument("--policy-freq", default=2, type=int, help="Frequency of delayed policy updates")
+    parser.add_argument("--polyak", type=float, default=0.995, help="Target network update rate")
+    parser.add_argument("--policy-freq", default=1, type=int, help="Frequency of delayed policy updates")
     parser.add_argument("--seed", type=int, default=123, help="random seed")
     parser.add_argument("--save-dir", type=str, default="saved_models", help="the path to save the models")
     parser.add_argument("--buffer-size", type=int, default=int(1e6), help="the size of the buffer")
-    parser.add_argument("--batch-size", type=int, default=100, help="the sample batch size")
-    parser.add_argument("--lr-actor", type=float, default=0.001, help="the learning rate of the actor")
-    parser.add_argument("--lr-critic", type=float, default=0.001, help="the learning rate of the critic")
+    parser.add_argument("--batch-size", type=int, default=256, help="the sample batch size")
+    parser.add_argument("--lr-actor", type=float, default=0.0003, help="the learning rate of the actor")
+    parser.add_argument("--lr-critic", type=float, default=0.0003, help="the learning rate of the critic")
     parser.add_argument("--n-test-rollouts", type=int, default=10, help="the number of tests")
 
     # World model
@@ -141,7 +139,7 @@ def get_args_ddpg():
     parser.add_argument("--model-dim-chunk", type=int, default=20, help="model dimension chunk")
     parser.add_argument("--model-type", type=str, choices=["deterministic", "stochastic"], default="deterministic", help="model type")
     parser.add_argument("--model-based", action="store_true", help="if use model based acceleration")
-    parser.add_argument("--model-training-freq", type=int, default=100, help="frequency of model training")
+    parser.add_argument("--model-training-freq", type=int, default=1000, help="frequency of model training")
 
     args = parser.parse_args(namespace=DdpgNamespace())
 

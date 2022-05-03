@@ -126,21 +126,20 @@ def get_args_sac():
 
     # the environment setting
     parser.add_argument("--env-name", type=str, default="FetchReach-v1", help="the environment name")
-    parser.add_argument("--start-timesteps", default=0, type=int, help="Time steps initial random policy is used")
+    parser.add_argument("--start-timesteps", default=5000, type=int, help="Time steps initial random policy is used")
     parser.add_argument("--eval-freq", default=5000, type=int, help="How often (time steps) we evaluate")
     parser.add_argument("--max-timesteps", default=1e6, type=int, help="Max time steps to run environment")
-    parser.add_argument("--n-batches", type=int, default=40, help="the times to update the network")
     parser.add_argument("--seed", type=int, default=123, help="random seed")
     # parser.add_argument("--replay-strategy", type=str, default="future", help="the HER strategy")
     parser.add_argument("--clip-return", action="store_false", help="if clip the returns")
     parser.add_argument("--save-dir", type=str, default="saved_models", help="the path to save the models")
     parser.add_argument("--buffer-size", type=int, default=int(1e6), help="the size of the buffer")
-    parser.add_argument("--batch-size", type=int, default=100, help="the sample batch size")
-    parser.add_argument("--gamma", type=float, default=0.98, help="the discount factor")
-    parser.add_argument("--lr-actor", type=float, default=0.001, help="the learning rate of the actor")
-    parser.add_argument("--lr-critic", type=float, default=0.001, help="the learning rate of the critic")
-    parser.add_argument("--polyak", type=float, default=0.98, help="the average coefficient")
-    parser.add_argument("--policy-freq", default=2, type=int, help="Frequency of delayed policy updates")
+    parser.add_argument("--batch-size", type=int, default=256, help="the sample batch size")
+    parser.add_argument("--gamma", type=float, default=0.99, help="the discount factor")
+    parser.add_argument("--lr-actor", type=float, default=0.0003, help="the learning rate of the actor")
+    parser.add_argument("--lr-critic", type=float, default=0.0003, help="the learning rate of the critic")
+    parser.add_argument("--polyak", type=float, default=0.995, help="the average coefficient")
+    parser.add_argument("--policy-freq", default=1, type=int, help="Frequency of delayed policy updates")
     parser.add_argument("--n-test-rollouts", type=int, default=10, help="the number of tests")
 
     # World model
@@ -151,7 +150,7 @@ def get_args_sac():
     parser.add_argument("--model-dim-chunk", type=int, default=20, help="model dimension chunk")
     parser.add_argument("--model-type", type=str, choices=["deterministic", "stochastic"], default="deterministic", help="model type")
     parser.add_argument("--model-based", action="store_true", help="if use model based acceleration")
-    parser.add_argument("--model-training-freq", type=int, default=100, help="frequency of model training")
+    parser.add_argument("--model-training-freq", type=int, default=1000, help="frequency of model training")
 
     # Sac
     parser.add_argument("--alpha", type=float, default=0.2, help="Temperature parameter α determines the relative importance of the entropy term against the reward (default: 0.2)")

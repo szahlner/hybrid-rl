@@ -58,43 +58,82 @@ for env_name in os.listdir("../logs"):
 for env_name in experiments:
     for plot in experiments[env_name]:
 
-        ##############################
-        # SuccessRate
-        ##############################
-        plt.figure(f"{plot} - {env_name} - SuccessRate")
-        for n, algo_name in enumerate(experiments[env_name][plot]):
+        if any(env in env_name for env in ["FetchReach", "ShadowHand"]):
+            ##############################
+            # SuccessRate
+            ##############################
+            plt.figure(f"{plot} - {env_name} - SuccessRate")
+            for n, algo_name in enumerate(experiments[env_name][plot]):
 
-            data = pd.read_csv(experiments[env_name][plot][algo_name][0], "\t")
-            epoch = data["Epoch"].values
-            success = np.zeros((len(epoch), len(experiments[env_name][plot][algo_name])))
+                data = pd.read_csv(experiments[env_name][plot][algo_name][0], "\t")
+                epoch = data["Epoch"].values
+                success = np.zeros((len(epoch), len(experiments[env_name][plot][algo_name])))
 
-            for k, exp_name in enumerate(experiments[env_name][plot][algo_name]):
-                data = pd.read_csv(exp_name, "\t")
-                try:
-                    success[:, k] = data["SuccessRate"].values
-                except KeyError:
-                    success[:, k] = data["AverageSuccessRate"].values
+                for k, exp_name in enumerate(experiments[env_name][plot][algo_name]):
+                    data = pd.read_csv(exp_name, "\t")
+                    try:
+                        success[:, k] = data["SuccessRate"].values
+                    except KeyError:
+                        success[:, k] = data["AverageSuccessRate"].values
 
-            if "ShadowHand" in env_name:
-                WINDOW_SIZE = 5
-            elif "Fetch" in env_name:
-                WINDOW_SIZE = 3
-            else:
-                WINDOW_SIZE = 1
+                if "ShadowHand" in env_name:
+                    WINDOW_SIZE = 5
+                elif "Fetch" in env_name:
+                    WINDOW_SIZE = 3
+                else:
+                    WINDOW_SIZE = 1
 
-            success_median = moving_average(np.median(success, axis=-1), WINDOW_SIZE)
-            success_min = moving_average(np.min(success, axis=-1), WINDOW_SIZE)
-            success_max = moving_average(np.max(success, axis=-1), WINDOW_SIZE)
-            epoch = epoch[len(epoch) - len(success_median):]
+                success_median = moving_average(np.median(success, axis=-1), WINDOW_SIZE)
+                success_min = moving_average(np.min(success, axis=-1), WINDOW_SIZE)
+                success_max = moving_average(np.max(success, axis=-1), WINDOW_SIZE)
+                epoch = epoch[len(epoch) - len(success_median):]
 
-            plt.plot(epoch, success_median, color=nice_colors[n], label=algo_name)
-            plt.fill_between(epoch, success_min, success_max, color=nice_colors[n], alpha=0.3)
+                plt.plot(epoch, success_median, color=nice_colors[n], label=algo_name)
+                plt.fill_between(epoch, success_min, success_max, color=nice_colors[n], alpha=0.3)
 
-        plt.title(env_name)
-        plt.xlabel("Epoch")
-        plt.ylabel("Median Success Rate")
-        plt.ylim([-0.03, 1.03])
-        plt.legend()
+            plt.title(env_name)
+            plt.xlabel("Epoch")
+            plt.ylabel("Median Success Rate")
+            plt.ylim([-0.03, 1.03])
+            plt.legend()
+        else:
+            ##############################
+            # Reward
+            ##############################
+            plt.figure(f"{plot} - {env_name} - Reward")
+            for n, algo_name in enumerate(experiments[env_name][plot]):
+
+                data = pd.read_csv(experiments[env_name][plot][algo_name][0], "\t")
+                timesteps = data["Timesteps"].values
+                reward = np.zeros((len(timesteps), len(experiments[env_name][plot][algo_name])))
+
+                for k, exp_name in enumerate(experiments[env_name][plot][algo_name]):
+                    data = pd.read_csv(exp_name, "\t")
+                    try:
+                        reward[:, k] = data["Reward"].values
+                    except KeyError:
+                        reward[:, k] = data["AverageReward"].values
+
+                if "Hopper" in env_name:
+                    WINDOW_SIZE = 5
+                else:
+                    WINDOW_SIZE = 1
+
+                reward_median = moving_average(np.median(reward, axis=-1), WINDOW_SIZE)
+                reward_min = moving_average(np.min(reward, axis=-1), WINDOW_SIZE)
+                reward_max = moving_average(np.max(reward, axis=-1), WINDOW_SIZE)
+                timesteps = timesteps[len(timesteps) - len(reward_median):]
+
+                plt.plot(timesteps, reward_median, color=nice_colors[n], label=algo_name)
+                plt.fill_between(timesteps, reward_min, reward_max, color=nice_colors[n], alpha=0.3)
+
+            plt.title(env_name)
+            plt.xlabel("Timesteps")
+            plt.ylabel("Median Reward")
+            plt.ticklabel_format(axis="x", style="sci", scilimits=(0, 0))
+            plt.xlim(left=0)
+            plt.ylim(bottom=0)
+            plt.legend()
 
         ##############################
         # WorldBufferSize

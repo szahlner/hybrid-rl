@@ -167,9 +167,10 @@ class HER:
                 self.target_entropy = -torch.prod(torch.Tensor(self.env.action_space.shape).to(device)).item()
             self.log_alpha = torch.zeros(1, requires_grad=True, device=device)
             self.alpha_optim = torch.optim.Adam([self.log_alpha], lr=args.lr_alpha)
-
-        # Alpha
-        self.alpha = self.args.alpha
+            self.alpha = self.log_alpha.cpu().exp().item()
+        else:
+            # Alpha
+            self.alpha = self.args.alpha
 
         # Her sampler
         self.her_module = HerSampler(self.args.replay_strategy, self.args.replay_k, self.env.compute_reward)

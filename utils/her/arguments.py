@@ -133,7 +133,7 @@ def get_args_her_sac():
 
     # Sac
     parser.add_argument("--alpha", type=float, default=0.2, help="Temperature parameter α determines the relative importance of the entropy term against the reward (default: 0.2)")
-    parser.add_argument("--lr-alpha", type=float, default=0.001, help="the learning rate of the alpha")
+    parser.add_argument("--lr-alpha", type=float, default=0.0003, help="the learning rate of the alpha")
     parser.add_argument("--automatic-entropy-tuning", action="store_true", help="Automaically adjust α (default: False)")
     parser.add_argument("--target-entropy", type=float, help="Target entropy")
 

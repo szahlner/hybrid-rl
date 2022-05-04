@@ -117,7 +117,7 @@ def get_args_ddpg():
     # the environment setting
     parser.add_argument("--env-name", type=str, default="FetchReach-v1", help="the environment name")
     parser.add_argument("--start-timesteps", default=5000, type=int, help="Time steps initial random policy is used")
-    parser.add_argument("--eval-freq", default=5000, type=int, help="How often (time steps) we evaluate")
+    parser.add_argument("--eval-freq", default=1000, type=int, help="How often (time steps) we evaluate")
     parser.add_argument("--max-timesteps", default=1e6, type=int, help="Max time steps to run environment")
     parser.add_argument("--exploration-noise", default=0.1, help="Std of Gaussian exploration noise")
     parser.add_argument("--gamma", type=float, default=0.99, help="Discount factor")

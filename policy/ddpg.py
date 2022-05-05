@@ -1,4 +1,5 @@
 import os
+import sys
 import numpy as np
 import torch
 import torch.nn as nn
@@ -335,6 +336,7 @@ class DDPG:
                     self.logger.log_tabular("WorldModelReplayBufferSize", with_min_and_max=True)
 
                 self.logger.dump_tabular()
+                sys.stdout.flush()
 
                 if MPI.COMM_WORLD.Get_rank() == 0:
                     file_path = os.path.join(self.args.save_dir, "model.pt")

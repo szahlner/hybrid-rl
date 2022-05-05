@@ -29,6 +29,7 @@ def train(args: SacNamespace):
 
     # Set random seeds for reproduce
     env.seed(args.seed + MPI.COMM_WORLD.Get_rank())
+    env.action_space.np_random.seed(args.seed + MPI.COMM_WORLD.Get_rank())
     random.seed(args.seed + MPI.COMM_WORLD.Get_rank())
     np.random.seed(args.seed + MPI.COMM_WORLD.Get_rank())
     torch.manual_seed(args.seed + MPI.COMM_WORLD.Get_rank())

@@ -10,7 +10,10 @@ cp "./experiments/train_sac.py" "./train_sac.py"
 cp "./experiments/train_redq_sac.py" "./train_redq_sac.py"
 
 # Copy script files
-cp "./scripts/run_experiments.sh" "./run_experiments.sh"
+cp "./scripts/run_ddpg_experiments.sh" "./run_ddpg_experiments.sh"
+cp "./scripts/run_sac_experiments.sh" "./run_sac_experiments.sh"
+cp "./scripts/run_her_ddpg_experiments.sh" "./run_her_ddpg_experiments.sh"
+cp "./scripts/run_her_sac_experiments.sh" "./run_her_sac_experiments.sh"
 
 echo "######################################################"
 echo "ALL DONE, you are now prepared to run the experiments!"

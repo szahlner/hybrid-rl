@@ -96,6 +96,53 @@ for env_name in experiments:
             plt.ylabel("Median Success Rate")
             plt.ylim([-0.03, 1.03])
             plt.legend()
+
+            ##############################
+            # WorldBufferSize
+            ##############################
+            plt.figure(f"{plot} - {env_name} - WorldBufferSize")
+            for n, algo_name in enumerate(experiments[env_name][plot]):
+
+                if "DWM" not in algo_name and "SWM" not in algo_name:
+                    continue
+
+                data = pd.read_csv(experiments[env_name][plot][algo_name][0], "\t")
+                epoch = data["Epoch"].values
+                buffer_size = np.zeros((len(epoch), len(experiments[env_name][plot][algo_name])))
+
+                for k, exp_name in enumerate(experiments[env_name][plot][algo_name]):
+                    data = pd.read_csv(exp_name, "\t")
+                    try:
+                        buffer_size[:, k] = data["WorldModelReplayBufferSize"].values
+                    except KeyError:
+                        buffer_size[:, k] = data["AverageWorldModelReplayBufferSize"].values
+
+                if "ShadowHand" in env_name:
+                    WINDOW_SIZE = 5
+                elif "Fetch" in env_name:
+                    WINDOW_SIZE = 3
+                else:
+                    WINDOW_SIZE = 1
+
+                buffer_size_full = np.array([10000 * 5 * m for m in range(len(epoch))])
+                buffer_size_median = moving_average(np.median(buffer_size, axis=-1), WINDOW_SIZE)
+                buffer_size_min = moving_average(np.min(buffer_size, axis=-1), WINDOW_SIZE)
+                buffer_size_max = moving_average(np.max(buffer_size, axis=-1), WINDOW_SIZE)
+                epoch = epoch[len(epoch) - len(buffer_size_median):]
+
+                buffer_size_full = buffer_size_full[WINDOW_SIZE - 1:]
+                buffer_size_median = buffer_size_median / buffer_size_full
+                buffer_size_min = buffer_size_min / buffer_size_full
+                buffer_size_max = buffer_size_max / buffer_size_full
+
+                plt.plot(epoch, buffer_size_median, color=nice_colors[n], label=algo_name)
+                plt.fill_between(epoch, buffer_size_min, buffer_size_max, color=nice_colors[n], alpha=0.3)
+
+            plt.title(env_name)
+            plt.xlabel("Epoch")
+            plt.ylabel("Median World Buffer Size")
+            plt.ylim([-0.03, 1.03])
+            plt.legend()
         else:
             ##############################
             # Reward
@@ -135,51 +182,51 @@ for env_name in experiments:
             plt.ylim(bottom=0)
             plt.legend()
 
-        ##############################
-        # WorldBufferSize
-        ##############################
-        plt.figure(f"{plot} - {env_name} - WorldBufferSize")
-        for n, algo_name in enumerate(experiments[env_name][plot]):
+            ##############################
+            # WorldBufferSize
+            ##############################
+            plt.figure(f"{plot} - {env_name} - WorldBufferSize")
+            for n, algo_name in enumerate(experiments[env_name][plot]):
 
-            if "DWM" not in algo_name and "SWM" not in algo_name:
-                continue
+                if "DWM" not in algo_name and "SWM" not in algo_name:
+                    continue
 
-            data = pd.read_csv(experiments[env_name][plot][algo_name][0], "\t")
-            epoch = data["Epoch"].values
-            buffer_size = np.zeros((len(epoch), len(experiments[env_name][plot][algo_name])))
+                data = pd.read_csv(experiments[env_name][plot][algo_name][0], "\t")
+                timesteps = data["Timesteps"].values
+                buffer_size = np.zeros((len(timesteps), len(experiments[env_name][plot][algo_name])))
 
-            for k, exp_name in enumerate(experiments[env_name][plot][algo_name]):
-                data = pd.read_csv(exp_name, "\t")
-                try:
-                    buffer_size[:, k] = data["WorldModelReplayBufferSize"].values
-                except KeyError:
-                    buffer_size[:, k] = data["AverageWorldModelReplayBufferSize"].values
+                for k, exp_name in enumerate(experiments[env_name][plot][algo_name]):
+                    data = pd.read_csv(exp_name, "\t")
+                    try:
+                        buffer_size[:, k] = data["WorldModelReplayBufferSize"].values
+                    except KeyError:
+                        buffer_size[:, k] = data["AverageWorldModelReplayBufferSize"].values
 
-            if "ShadowHand" in env_name:
-                WINDOW_SIZE = 5
-            elif "Fetch" in env_name:
-                WINDOW_SIZE = 3
-            else:
-                WINDOW_SIZE = 1
+                if "ShadowHand" in env_name:
+                    WINDOW_SIZE = 5
+                elif "Fetch" in env_name:
+                    WINDOW_SIZE = 3
+                else:
+                    WINDOW_SIZE = 1
 
-            buffer_size_full = np.array([10000 * 5 * m for m in range(len(epoch))])
-            buffer_size_median = moving_average(np.median(buffer_size, axis=-1), WINDOW_SIZE)
-            buffer_size_min = moving_average(np.min(buffer_size, axis=-1), WINDOW_SIZE)
-            buffer_size_max = moving_average(np.max(buffer_size, axis=-1), WINDOW_SIZE)
-            epoch = epoch[len(epoch) - len(buffer_size_median):]
+                buffer_size_full = np.array([10000 * 5 * m for m in range(len(timesteps))])
+                buffer_size_median = moving_average(np.median(buffer_size, axis=-1), WINDOW_SIZE)
+                buffer_size_min = moving_average(np.min(buffer_size, axis=-1), WINDOW_SIZE)
+                buffer_size_max = moving_average(np.max(buffer_size, axis=-1), WINDOW_SIZE)
+                timesteps = timesteps[len(timesteps) - len(buffer_size_median):]
 
-            buffer_size_full = buffer_size_full[WINDOW_SIZE - 1:]
-            buffer_size_median = buffer_size_median / buffer_size_full
-            buffer_size_min = buffer_size_min / buffer_size_full
-            buffer_size_max = buffer_size_max / buffer_size_full
+                buffer_size_full = buffer_size_full[WINDOW_SIZE - 1:]
+                buffer_size_median = buffer_size_median / buffer_size_full
+                buffer_size_min = buffer_size_min / buffer_size_full
+                buffer_size_max = buffer_size_max / buffer_size_full
 
-            plt.plot(epoch, buffer_size_median, color=nice_colors[n], label=algo_name)
-            plt.fill_between(epoch, buffer_size_min, buffer_size_max, color=nice_colors[n], alpha=0.3)
+                plt.plot(timesteps, buffer_size_median, color=nice_colors[n], label=algo_name)
+                plt.fill_between(timesteps, buffer_size_min, buffer_size_max, color=nice_colors[n], alpha=0.3)
 
-        plt.title(env_name)
-        plt.xlabel("Epoch")
-        plt.ylabel("Median World Buffer Size")
-        plt.ylim([-0.03, 1.03])
-        plt.legend()
+            plt.title(env_name)
+            plt.xlabel("Epoch")
+            plt.ylabel("Median World Buffer Size")
+            plt.ylim([-0.03, 1.03])
+            plt.legend()
 
 plt.show()

@@ -49,6 +49,7 @@ RUN pip install --upgrade pip
 # Run install
 # RUN pip3 install .[nomujoco] && pip3 install -r requirements.txt
 RUN pip install -r requirements.txt
+RUN pip install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cpu
 
 # Remove the requirements and Docker file - this is no longer needed
 RUN rm /home/hybrid-rl/requirements.txt
@@ -58,4 +59,4 @@ RUN rm /home/hybrid-rl/Dockerfile
 RUN ./update.sh
 RUN ./prepare-run.sh
 
-ENTRYPOINT ["tail", "-f", "/dev/null"]
+ENTRYPOINT [""]

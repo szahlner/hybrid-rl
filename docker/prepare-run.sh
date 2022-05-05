@@ -15,6 +15,12 @@ cp "./scripts/run_sac_experiments.sh" "./run_sac_experiments.sh"
 cp "./scripts/run_her_ddpg_experiments.sh" "./run_her_ddpg_experiments.sh"
 cp "./scripts/run_her_sac_experiments.sh" "./run_her_sac_experiments.sh"
 
+# Set permissions
+chmod +x "./run_ddpg_experiments.sh"
+chmod +x "./run_sac_experiments.sh"
+chmod +x "./run_her_ddpg_experiments.sh"
+chmod +x "./run_her_sac_experiments.sh"
+
 echo "######################################################"
 echo "ALL DONE, you are now prepared to run the experiments!"
 echo "######################################################"

@@ -59,4 +59,4 @@ RUN rm /home/hybrid-rl/Dockerfile
 RUN ./update.sh
 RUN ./prepare-run.sh
 
-ENTRYPOINT [""]
+ENTRYPOINT ["/bin/bash"]

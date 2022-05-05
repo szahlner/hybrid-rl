@@ -383,7 +383,7 @@ class SAC:
                 episode_num += 1
 
             # Evaluate episode
-            if ts % self.args.eval_freq == 0 and ts != 0:
+            if ts % self.args.eval_freq == 0 and ts != 0 and ts >= self.args.start_timesteps:
                 reward = self._eval_agent()
                 self.logger.store(Reward=reward)
 

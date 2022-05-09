@@ -18,8 +18,8 @@ def redq_sac(env_name, seed=0, epochs='mbpo', steps_per_epoch=1000,
              lr=3e-4, gamma=0.99, polyak=0.995,
              alpha=0.2, auto_alpha=True, target_entropy='auto',
              start_steps=5000, delay_update_steps='auto',
-             utd_ratio=20, num_Q=10, num_min=2, q_target_mode='min',
-             policy_update_delay=20,
+             utd_ratio=1, num_Q=2, num_min=2, q_target_mode='min',
+             policy_update_delay=1,
              # following are bias evaluation related
              evaluate_bias=True, n_mc_eval=1000, n_mc_cutoff=350, reseed_each_epoch=True
              ):

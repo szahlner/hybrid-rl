@@ -10,18 +10,18 @@ from policy.redq.utils.bias_utils import log_bias_evaluation
 from policy.redq.utils.logx import EpochLogger
 
 
-def redq_sac(env_name, seed=0, epochs='mbpo', steps_per_epoch=1000 // 20,
-             max_ep_len=1000 // 20, n_evals_per_epoch=1,
+def redq_sac(env_name, seed=0, epochs='mbpo', steps_per_epoch=1000,
+             max_ep_len=1000, n_evals_per_epoch=1,
              logger_kwargs=dict(), debug=False,
              # following are agent related hyperparameters
              hidden_sizes=(256, 256), replay_size=int(1e6), batch_size=256,
              lr=3e-4, gamma=0.99, polyak=0.995,
              alpha=0.2, auto_alpha=True, target_entropy='auto',
-             start_steps=0, delay_update_steps='auto',
+             start_steps=5000, delay_update_steps='auto',
              utd_ratio=20, num_Q=10, num_min=2, q_target_mode='min',
              policy_update_delay=20,
              # following are bias evaluation related
-             evaluate_bias=True, n_mc_eval=1000 // 20, n_mc_cutoff=350 // 20, reseed_each_epoch=True
+             evaluate_bias=True, n_mc_eval=1000, n_mc_cutoff=350, reseed_each_epoch=True
              ):
     """
     :param env_name: name of the gym environment
@@ -212,7 +212,7 @@ if __name__ == '__main__':
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--env', type=str, default='FetchReach-v1')
+    parser.add_argument('--env', type=str, default='Hopper-v2')
     parser.add_argument('--seed', '-s', type=int, default=0)
     parser.add_argument('--epochs', type=int, default=-1)  # -1 means use mbpo epochs
     parser.add_argument('--exp_name', type=str, default='REDQ+SAC')

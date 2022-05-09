@@ -124,7 +124,7 @@ for env_name in experiments:
                 else:
                     WINDOW_SIZE = 1
 
-                buffer_size_full = np.array([10000 * 5 * m for m in range(len(epoch))])
+                buffer_size_full = np.array([250000 + 10000 * 5 * m for m in range(len(epoch))])
                 buffer_size_median = moving_average(np.median(buffer_size, axis=-1), WINDOW_SIZE)
                 buffer_size_min = moving_average(np.min(buffer_size, axis=-1), WINDOW_SIZE)
                 buffer_size_max = moving_average(np.max(buffer_size, axis=-1), WINDOW_SIZE)

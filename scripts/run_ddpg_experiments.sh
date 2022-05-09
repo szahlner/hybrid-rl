@@ -40,7 +40,7 @@ python train_ddpg.py --env-name HalfCheetah-v2 --seed 123 --max-timesteps 400000
 python train_ddpg.py --env-name HalfCheetah-v2 --seed 1234 --max-timesteps 400000 --model-based --model-type stochastic --model-stochastic-percentage 0.83
 python train_ddpg.py --env-name HalfCheetah-v2 --seed 12345 --max-timesteps 400000 --model-based --model-type stochastic --model-stochastic-percentage 0.83
 
-# DDPG Humanoid-v2
+# DDPG Ant-v2
 python train_ddpg.py --env-name Ant-v2 --seed 123 --max-timesteps 300000
 python train_ddpg.py --env-name Ant-v2 --seed 1234 --max-timesteps 300000
 python train_ddpg.py --env-name Ant-v2 --seed 12345 --max-timesteps 300000

@@ -11,7 +11,7 @@ from policy.redq.utils.logx import EpochLogger
 
 
 def redq_sac(env_name, seed=0, epochs='mbpo', steps_per_epoch=1000,
-             max_ep_len=1000, n_evals_per_epoch=1,
+             max_ep_len=1000, n_evals_per_epoch=10,
              logger_kwargs=dict(), debug=False,
              # following are agent related hyperparameters
              hidden_sizes=(256, 256), replay_size=int(1e6), batch_size=256,

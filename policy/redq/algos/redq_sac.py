@@ -5,6 +5,14 @@ import torch.nn as nn
 import torch.optim as optim
 from policy.redq.algos.core import TanhGaussianPolicy, Mlp, soft_update_model1_with_model2, ReplayBuffer, mbpo_target_entropy_dict
 
+from copy import deepcopy
+from utils.replay_buffer import ReplayBuffer as MyReplayBuffer
+from world_model.deterministic_world_model import DeterministicWorldModel
+from world_model.stochastic_world_model import StochasticWorldModel
+
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 def get_probabilistic_num_min(num_mins):
     # allows the number of min to be a float
@@ -36,6 +44,7 @@ class REDQSACAgent(object):
                  start_steps=5000, delay_update_steps='auto',
                  utd_ratio=20, num_Q=10, num_min=2, q_target_mode='min',
                  policy_update_delay=20,
+                 args=None, env_params=None,
                  ):
         # set up networks
         self.policy_net = TanhGaussianPolicy(obs_dim, act_dim, hidden_sizes, action_limit=act_limit).to(device)
@@ -88,6 +97,227 @@ class REDQSACAgent(object):
         self.q_target_mode = q_target_mode
         self.policy_update_delay = policy_update_delay
         self.device = device
+
+        self.args = args
+        self.env_params = env_params
+
+        # Model based section
+        if self.args.model_based:
+            model_dim_chunk = self.args.model_dim_chunk
+            output_dim = env_params["obs"] + env_params["reward"]
+            self.model_chunks = [model_dim_chunk for _ in range(output_dim // model_dim_chunk)]
+            if output_dim % model_dim_chunk != 0:
+                self.model_chunks.append(output_dim % model_dim_chunk)
+
+            self.world_models = []
+            for chunk in self.model_chunks:
+                if self.args.model_type == "deterministic":
+                    # Deterministic world model
+                    self.world_models.append(
+                        DeterministicWorldModel(
+                            input_dim=env_params["obs"] + env_params["goal"] + env_params["action"],
+                            output_dim=chunk,
+                            network_dim=1,
+                        )
+                    )
+                else:
+                    # Stochastic world model
+                    self.world_models.append(
+                        StochasticWorldModel(
+                            input_dim=env_params["obs"] + env_params["goal"] + env_params["action"],
+                            output_dim=chunk,
+                            network_dim=1,
+                        )
+                    )
+            self.model_chunks.insert(0, 0)
+            self.model_chunks = np.cumsum(self.model_chunks).tolist()
+
+            # Buffers
+            self.simple_world_model_replay_buffer = MyReplayBuffer(self.env_params, self.replay_size)
+
+            # Create the replay buffer
+            self.world_model_params = deepcopy(self.env_params)
+            self.world_model_params["max_timesteps"] = self.args.model_max_rollout_timesteps  # change max timesteps to rollout length
+            self.world_model_buffer = MyReplayBuffer(self.world_model_params, self.replay_size)
+
+    def store_data_for_world_model(self, o, a, r, o2, d):
+        # store one transition to the buffer
+        self.simple_world_model_replay_buffer.store(batch=[o, o2, np.array([r]), np.array([d]), a])
+
+    def do_world_model_stuff(self, ts, logger):
+        # Model based section
+        if ts % self.args.model_training_freq == 0 and ts != 0:
+            transitions = self.simple_world_model_replay_buffer.sample(self.args.model_n_training_transitions)  # 10000
+
+            # Train chunked
+            training_inputs = transitions["obs"]
+            training_labels = np.concatenate(
+                [transitions["obs_next"] - transitions["obs"], transitions["r"]],
+                axis=-1
+            )
+
+            training_inputs = np.concatenate([training_inputs, transitions["actions"]], axis=-1)
+            for n in range(len(self.model_chunks) - 1):
+                tl = training_labels[:, self.model_chunks[n]:self.model_chunks[n + 1]]
+                self.world_models[n].train(training_inputs, tl)
+
+            # Rollout
+            n_transitions = self.args.model_n_rollout_transitions  # 10000
+            transitions = self.simple_world_model_replay_buffer.sample(n_transitions)
+            world_model_obs = np.empty(
+                (
+                    n_transitions,
+                    self.world_model_params["max_timesteps"] + 1,
+                    self.env_params["obs"]
+                )
+            )
+            world_model_r = np.empty(
+                (
+                    n_transitions,
+                    self.world_model_params["max_timesteps"],
+                    self.env_params["reward"]
+                )
+            )
+            world_model_actions = np.empty(
+                (
+                    n_transitions,
+                    self.world_model_params["max_timesteps"],
+                    self.env_params["action"]
+                )
+            )
+            world_model_mask = np.empty((n_transitions, self.world_model_params["max_timesteps"]))
+
+            world_model_obs[:, 0] = transitions["obs"]
+
+            for n in range(self.world_model_params["max_timesteps"]):
+                with torch.no_grad():
+                    obs_tensor = torch.tensor(world_model_obs[:, n], dtype=torch.float32, device=device)
+                    pi = self.policy_net.forward(obs_tensor, deterministic=False, return_log_prob=False)[0]
+                    world_model_actions[:, n] = pi.cpu().numpy().squeeze()
+
+                diff = np.empty((n_transitions, self.env_params["obs"] + self.env_params["reward"]))
+                confidence = np.empty(
+                    (n_transitions, self.env_params["obs"] + self.env_params["reward"])
+                )
+
+                for k in range(len(self.model_chunks) - 1):
+                    diff_, confidence_ = self.world_models[k].predict(
+                        inputs=np.concatenate([
+                            world_model_obs[:, n],
+                            world_model_actions[:, n]
+                        ], axis=-1)
+                    )
+                    diff[:, self.model_chunks[k]:self.model_chunks[k + 1]] = diff_
+                    confidence[:, self.model_chunks[k]:self.model_chunks[k + 1]] = confidence_
+
+                if self.args.model_type == "deterministic":
+                    world_model_mask[:, n] = np.all(np.where(confidence < 1, True, False), axis=-1)
+                else:
+                    world_model_mask[:, n] = np.sum(confidence, axis=-1)
+
+                world_model_obs[:, n + 1] = world_model_obs[:, n] + diff[:, :self.env_params["obs"]]
+                world_model_r[:, n] = diff[:, self.env_params["obs"]:]
+
+            # Mark and select good ones
+            if self.args.model_type == "deterministic":
+                mask = np.any(world_model_mask, axis=-1)
+            else:
+                sorted_idx = np.argsort(np.sum(world_model_mask, axis=-1))
+                good_ones = int(len(sorted_idx) * self.args.model_stochastic_percentage)
+                world_model_mask[sorted_idx[:good_ones]] = True
+                world_model_mask[sorted_idx[good_ones:]] = False
+                mask = np.any(world_model_mask, axis=-1)
+
+            world_model_obs = world_model_obs[mask]
+            world_model_r = world_model_r[mask]
+            world_model_actions = world_model_actions[mask]
+
+            if mask.sum() > 0:
+                for n in range(self.world_model_params["max_timesteps"]):
+                    for k in range(len(world_model_obs)):
+                        self.world_model_buffer.store(
+                            batch=[
+                                world_model_obs[k, n],
+                                world_model_obs[k, n + 1],
+                                world_model_r[k, n],
+                                False,
+                                world_model_actions[k, n],
+                            ]
+                        )
+
+        logger.store(WorldModelReplayBufferSize=self.world_model_buffer.n_transitions_stored)
+
+        # Model based section
+        if ts > self.args.model_training_freq and self.world_model_buffer.current_size > 0:
+            self._unreal_train_network()
+
+    def _unreal_train_network(self):
+        # this function is called after each datapoint collected.
+        # when we only have very limited data, we don't make updates
+        num_update = 0 if self.__get_current_num_data() <= self.delay_update_steps else self.utd_ratio
+        for i_update in range(num_update):
+            # sample the episodes
+            transitions = self.world_model_buffer.sample(self.args.batch_size)
+
+            # transfer them into the tensor
+            obs_tensor = torch.tensor(transitions["obs"], dtype=torch.float32, device=device)
+            obs_next_tensor = torch.tensor(transitions["obs_next"], dtype=torch.float32, device=device)
+            acts_tensor = torch.tensor(transitions["actions"], dtype=torch.float32, device=device)
+            rews_tensor = torch.tensor(transitions["r"], dtype=torch.float32, device=device)
+            done_tensor = torch.tensor(transitions["d"], dtype=torch.float32, device=device)
+
+            """Q loss"""
+            y_q, sample_idxs = self.get_redq_q_target_no_grad(obs_next_tensor, rews_tensor, done_tensor)
+            q_prediction_list = []
+            for q_i in range(self.num_Q):
+                q_prediction = self.q_net_list[q_i](torch.cat([obs_tensor, acts_tensor], 1))
+                q_prediction_list.append(q_prediction)
+            q_prediction_cat = torch.cat(q_prediction_list, dim=1)
+            y_q = y_q.expand((-1, self.num_Q)) if y_q.shape[1] == 1 else y_q
+            q_loss_all = self.mse_criterion(q_prediction_cat, y_q) * self.num_Q
+
+            for q_i in range(self.num_Q):
+                self.q_optimizer_list[q_i].zero_grad()
+            q_loss_all.backward()
+
+            """policy and alpha loss"""
+            if ((i_update + 1) % self.policy_update_delay == 0) or i_update == num_update - 1:
+                # get policy loss
+                a_tilda, mean_a_tilda, log_std_a_tilda, log_prob_a_tilda, _, pretanh = self.policy_net.forward(
+                    obs_tensor)
+                q_a_tilda_list = []
+                for sample_idx in range(self.num_Q):
+                    self.q_net_list[sample_idx].requires_grad_(False)
+                    q_a_tilda = self.q_net_list[sample_idx](torch.cat([obs_tensor, a_tilda], 1))
+                    q_a_tilda_list.append(q_a_tilda)
+                q_a_tilda_cat = torch.cat(q_a_tilda_list, 1)
+                ave_q = torch.mean(q_a_tilda_cat, dim=1, keepdim=True)
+                policy_loss = (self.alpha * log_prob_a_tilda - ave_q).mean()
+                self.policy_optimizer.zero_grad()
+                policy_loss.backward()
+                for sample_idx in range(self.num_Q):
+                    self.q_net_list[sample_idx].requires_grad_(True)
+
+                # get alpha loss
+                if self.auto_alpha:
+                    alpha_loss = -(self.log_alpha * (log_prob_a_tilda + self.target_entropy).detach()).mean()
+                    self.alpha_optim.zero_grad()
+                    alpha_loss.backward()
+                    self.alpha_optim.step()
+                    self.alpha = self.log_alpha.cpu().exp().item()
+                else:
+                    alpha_loss = Tensor([0])
+
+            """update networks"""
+            for q_i in range(self.num_Q):
+                self.q_optimizer_list[q_i].step()
+
+            if ((i_update + 1) % self.policy_update_delay == 0) or i_update == num_update - 1:
+                self.policy_optimizer.step()
+
+            # polyak averaged Q target networks
+            for q_i in range(self.num_Q):
+                soft_update_model1_with_model2(self.q_target_net_list[q_i], self.q_net_list[q_i], self.polyak)
 
     def __get_current_num_data(self):
         # used to determine whether we should get action from policy or take random starting actions

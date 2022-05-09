@@ -9,6 +9,8 @@ from policy.redq.utils.run_utils import setup_logger_kwargs
 from policy.redq.utils.bias_utils import log_bias_evaluation
 from policy.redq.utils.logx import EpochLogger
 
+from utils.utils import get_env_params
+
 
 def redq_sac(env_name, seed=0, epochs='mbpo', steps_per_epoch=1000,
              max_ep_len=1000, n_evals_per_epoch=10,
@@ -21,7 +23,8 @@ def redq_sac(env_name, seed=0, epochs='mbpo', steps_per_epoch=1000,
              utd_ratio=1, num_Q=2, num_min=2, q_target_mode='min',
              policy_update_delay=1,
              # following are bias evaluation related
-             evaluate_bias=True, n_mc_eval=1000, n_mc_cutoff=350, reseed_each_epoch=True
+             evaluate_bias=True, n_mc_eval=1000, n_mc_cutoff=350, reseed_each_epoch=True,
+             args=None,
              ):
     """
     :param env_name: name of the gym environment
@@ -106,6 +109,8 @@ def redq_sac(env_name, seed=0, epochs='mbpo', steps_per_epoch=1000,
 
     seed_all(epoch=0)
 
+    env_params = get_env_params(env)
+
     """prepare to init agent"""
     # get obs and action dimensions
     obs_dim = env.observation_space.shape[0]
@@ -131,7 +136,8 @@ def redq_sac(env_name, seed=0, epochs='mbpo', steps_per_epoch=1000,
                          alpha, auto_alpha, target_entropy,
                          start_steps, delay_update_steps,
                          utd_ratio, num_Q, num_min, q_target_mode,
-                         policy_update_delay)
+                         policy_update_delay,
+                         args, env_params)
 
     o, r, d, ep_ret, ep_len = env.reset(), 0, False, 0, 0
 
@@ -150,6 +156,11 @@ def redq_sac(env_name, seed=0, epochs='mbpo', steps_per_epoch=1000,
 
         # give new data to agent
         agent.store_data(o, a, r, o2, d)
+
+        if args.model_based:
+            agent.store_data_for_world_model(o, a, r, o2, d)
+            agent.do_world_model_stuff(t, logger)
+
         # let agent update
         agent.train(logger)
         # set obs to next obs
@@ -163,7 +174,7 @@ def redq_sac(env_name, seed=0, epochs='mbpo', steps_per_epoch=1000,
             o, r, d, ep_ret, ep_len = env.reset(), 0, False, 0, 0
 
         # End of epoch wrap-up
-        if (t + 1) % steps_per_epoch == 0:
+        if (t + 1) >= start_steps and (t + 1) % steps_per_epoch == 0:
             epoch = t // steps_per_epoch
 
             # Test the performance of the deterministic version of the agent.
@@ -193,6 +204,9 @@ def redq_sac(env_name, seed=0, epochs='mbpo', steps_per_epoch=1000,
             logger.log_tabular('LossAlpha', average_only=True)
             logger.log_tabular('PreTanh', with_min_and_max=True)
 
+            if args.model_based:
+                logger.log_tabular("WorldModelReplayBufferSize", with_min_and_max=True)
+
             if evaluate_bias:
                 logger.log_tabular("MCDisRet", with_min_and_max=True)
                 logger.log_tabular("MCDisRetEnt", with_min_and_max=True)
@@ -218,6 +232,40 @@ if __name__ == '__main__':
     parser.add_argument('--exp_name', type=str, default='REDQ+SAC')
     parser.add_argument('--data_dir', type=str, default='../logs/')
     parser.add_argument('--debug', action='store_true')
+
+    parser.add_argument('--steps-per-epoch', type=int, default=1000)
+    parser.add_argument('--max-ep-len', type=int, default=1000)
+    parser.add_argument('--n-evals-per-epoch', type=int, default=10)
+
+    parser.add_argument('--replay-size', type=int, default=1000000)
+    parser.add_argument('--batch-size', type=int, default=256)
+    parser.add_argument('--lr', type=float, default=3e-4)
+    parser.add_argument('--gamma', type=float, default=0.99)
+    parser.add_argument('--polyak', type=float, default=0.995)
+    parser.add_argument('--alpha', type=float, default=0.2)
+    parser.add_argument('--auto-alpha', action='store_false')
+
+    parser.add_argument('--start-steps', type=int, default=5000)
+    parser.add_argument('--utd-ratio', type=int, default=1)
+    parser.add_argument('--num-Q', type=int, default=2)
+    parser.add_argument('--num-min', type=int, default=2)
+    parser.add_argument('--policy-update-delay', type=int, default=1)
+
+    parser.add_argument('--evaluate-bias', action='store_false')
+    parser.add_argument('--n-mc-eval', type=int, default=1000)
+    parser.add_argument('--n-mc-cutoff', type=int, default=350)
+    parser.add_argument('--reseed_each_epoch', action='store_false')
+
+    # World model
+    parser.add_argument("--model-stochastic-percentage", type=float, default=1.0, help="percentage to take from confidence")
+    parser.add_argument("--model-n-training-transitions", type=int, default=10000, help="number of training transitions")
+    parser.add_argument("--model-n-rollout-transitions", type=int, default=10000, help="number of rollout transitions")
+    parser.add_argument("--model-max-rollout-timesteps", type=int, default=5, help="timesteps to perform rollout")
+    parser.add_argument("--model-dim-chunk", type=int, default=20, help="model dimension chunk")
+    parser.add_argument("--model-type", type=str, choices=["deterministic", "stochastic"], default="deterministic", help="model type")
+    parser.add_argument("--model-based", action="store_true", help="if use model based acceleration")
+    parser.add_argument("--model-training-freq", type=int, default=1000, help="frequency of model training")
+
     args = parser.parse_args()
 
     # modify the code here if you want to use a different naming scheme
@@ -228,4 +276,24 @@ if __name__ == '__main__':
     logger_kwargs = setup_logger_kwargs(exp_name_full, args.seed, args.data_dir)
 
     redq_sac(args.env, seed=args.seed, epochs=args.epochs,
+             steps_per_epoch=args.steps_per_epoch,
+             max_ep_len=args.max_ep_len,
+             n_evals_per_epoch=args.n_evals_per_epoch,
+             replay_size=args.replay_size,
+             batch_size=args.batch_size,
+             lr=args.lr,
+             gamma=args.gamma,
+             polyak=args.polyak,
+             alpha=args.alpha,
+             auto_alpha=args.auto_alpha,
+             start_steps=args.start_steps,
+             utd_ratio=args.utd_ratio,
+             num_Q=args.num_Q,
+             num_min=args.num_min,
+             policy_update_delay=args.policy_update_delay,
+             evaluate_bias=args.evaluate_bias,
+             n_mc_eval=args.n_mc_eval,
+             n_mc_cutoff=args.n_mc_cutoff,
+             reseed_each_epoch=args.reseed_each_epoch,
+             args=args,
              logger_kwargs=logger_kwargs, debug=args.debug)

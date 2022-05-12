@@ -6,6 +6,9 @@ import seaborn as sns
 
 sns.set()
 
+# Save path
+save_path = "."
+
 # Colors
 nice_colors = [
     [0, 0.4470, 0.7410],
@@ -62,7 +65,8 @@ for env_name in experiments:
             ##############################
             # SuccessRate
             ##############################
-            plt.figure(f"{plot} - {env_name} - SuccessRate")
+            plot_name = f"{plot} - {env_name} - SuccessRate"
+            plt.figure(plot_name)
             for n, algo_name in enumerate(experiments[env_name][plot]):
 
                 data = pd.read_csv(experiments[env_name][plot][algo_name][0], "\t")
@@ -96,11 +100,14 @@ for env_name in experiments:
             plt.ylabel("Median Success Rate")
             plt.ylim([-0.03, 1.03])
             plt.legend()
+            plt.savefig(os.path.join(save_path, f"{plot_name}.png"))
+            plt.close()
 
             ##############################
             # WorldBufferSize
             ##############################
-            plt.figure(f"{plot} - {env_name} - WorldBufferSize")
+            plot_name = f"{plot} - {env_name} - WorldBufferSize"
+            plt.figure(plot_name)
             for n, algo_name in enumerate(experiments[env_name][plot]):
 
                 if "DWM" not in algo_name and "SWM" not in algo_name:
@@ -143,11 +150,14 @@ for env_name in experiments:
             plt.ylabel("Median World Buffer Size")
             plt.ylim([-0.03, 1.03])
             plt.legend()
+            plt.savefig(os.path.join(save_path, f"{plot_name}.png"))
+            plt.close()
         else:
             ##############################
             # Reward
             ##############################
-            plt.figure(f"{plot} - {env_name} - Reward")
+            plot_name = f"{plot} - {env_name} - Reward"
+            plt.figure(plot_name)
             for n, algo_name in enumerate(experiments[env_name][plot]):
 
                 data = pd.read_csv(experiments[env_name][plot][algo_name][0], "\t")
@@ -161,31 +171,31 @@ for env_name in experiments:
                     except KeyError:
                         reward[:, k] = data["AverageReward"].values
 
-                if "Hopper" in env_name:
-                    WINDOW_SIZE = 5
-                else:
-                    WINDOW_SIZE = 1
+                WINDOW_SIZE = 5
 
-                reward_median = moving_average(np.median(reward, axis=-1), WINDOW_SIZE)
+                reward_mean = moving_average(np.mean(reward, axis=-1), WINDOW_SIZE)
                 reward_min = moving_average(np.min(reward, axis=-1), WINDOW_SIZE)
                 reward_max = moving_average(np.max(reward, axis=-1), WINDOW_SIZE)
-                timesteps = timesteps[len(timesteps) - len(reward_median):]
+                timesteps = timesteps[len(timesteps) - len(reward_mean):]
 
-                plt.plot(timesteps, reward_median, color=nice_colors[n], label=algo_name)
+                plt.plot(timesteps, reward_mean, color=nice_colors[n], label=algo_name)
                 plt.fill_between(timesteps, reward_min, reward_max, color=nice_colors[n], alpha=0.3)
 
             plt.title(env_name)
             plt.xlabel("Timesteps")
-            plt.ylabel("Median Reward")
+            plt.ylabel("Average Reward")
             plt.ticklabel_format(axis="x", style="sci", scilimits=(0, 0))
             plt.xlim(left=0)
             plt.ylim(bottom=0)
             plt.legend()
+            plt.savefig(os.path.join(save_path, f"{plot_name}.png"))
+            plt.close()
 
             ##############################
             # WorldBufferSize
             ##############################
-            plt.figure(f"{plot} - {env_name} - WorldBufferSize")
+            plot_name = f"{plot} - {env_name} - WorldBufferSize"
+            plt.figure(plot_name)
             for n, algo_name in enumerate(experiments[env_name][plot]):
 
                 if "DWM" not in algo_name and "SWM" not in algo_name:
@@ -228,5 +238,7 @@ for env_name in experiments:
             plt.ylabel("Median World Buffer Size")
             plt.ylim([-0.03, 1.03])
             plt.legend()
+            plt.savefig(os.path.join(save_path, f"{plot_name}.png"))
+            plt.close()
 
-plt.show()
+# plt.show()

@@ -42,9 +42,9 @@ class ReplayBuffer:
 
 def ddpg(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0,
          steps_per_epoch=1000, epochs=100, replay_size=int(1e6), gamma=0.99,
-         polyak=0.995, pi_lr=1e-3, q_lr=1e-3, batch_size=256, start_steps=5000,
+         polyak=0.995, pi_lr=1e-3, q_lr=3e-4, batch_size=256, start_steps=5000,
          update_after=5000, update_every=1, act_noise=0.1, num_test_episodes=10,
-         max_ep_len=1000, logger_kwargs=dict(), save_freq=1):
+         max_ep_len=1000, logger_kwargs=dict(), save_freq=1, args=None):
     """
     Deep Deterministic Policy Gradient (DDPG)
 
@@ -325,4 +325,4 @@ if __name__ == '__main__':
     ddpg(lambda: gym.make(args.env), actor_critic=core.MLPActorCritic,
          ac_kwargs=dict(hidden_sizes=[args.hid] * args.l),
          gamma=args.gamma, seed=args.seed, epochs=args.epochs,
-         logger_kwargs=logger_kwargs)
+         logger_kwargs=logger_kwargs, args=args)

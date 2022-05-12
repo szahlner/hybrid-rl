@@ -178,7 +178,7 @@ def redq_sac(env_name, seed=0, epochs='mbpo', steps_per_epoch=1000,
             epoch = t // steps_per_epoch
 
             # Test the performance of the deterministic version of the agent.
-            test_agent(agent, test_env, max_ep_len, logger)  # add logging here
+            test_agent(agent, test_env, max_ep_len, logger, args.n_evals_per_epoch)  # add logging here
             if evaluate_bias:
                 log_bias_evaluation(bias_eval_env, agent, logger, max_ep_len, alpha, gamma, n_mc_eval, n_mc_cutoff)
 

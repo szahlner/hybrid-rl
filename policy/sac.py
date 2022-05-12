@@ -467,9 +467,11 @@ class SAC:
             alpha_loss.backward()
             self.alpha_optim.step()
 
-            self.alpha = self.log_alpha.exp()
-            alpha = sync_scalar(self.alpha.detach().cpu().numpy())
-            self.alpha.data.copy_(torch.tensor(alpha, dtype=torch.float32, device=device))
+            self.alpha = self.log_alpha.cpu().exp().item()
+            self.alpha = sync_scalar(self.alpha)
+            # self.alpha = self.log_alpha.exp()
+            # alpha = sync_scalar(self.alpha.detach().cpu().numpy())
+            # self.alpha.data.copy_(torch.tensor(alpha, dtype=torch.float32, device=device))
         else:
             alpha_loss = torch.tensor(0.).to(device)
 
@@ -529,9 +531,11 @@ class SAC:
             alpha_loss.backward()
             self.alpha_optim.step()
 
-            self.alpha = self.log_alpha.exp()
-            alpha = sync_scalar(self.alpha.detach().cpu().numpy())
-            self.alpha.data.copy_(torch.tensor(alpha, dtype=torch.float32, device=device))
+            self.alpha = self.log_alpha.cpu().exp().item()
+            self.alpha = sync_scalar(self.alpha)
+            # self.alpha = self.log_alpha.exp()
+            # alpha = sync_scalar(self.alpha.detach().cpu().numpy())
+            # self.alpha.data.copy_(torch.tensor(alpha, dtype=torch.float32, device=device))
 
     # Do the evaluation
     def _eval_agent(self):

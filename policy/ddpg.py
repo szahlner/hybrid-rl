@@ -301,7 +301,7 @@ class DDPG:
                                 )
 
                 # Model based section
-                if ts > self.args.model_training_freq and self.world_model_buffer.current_size > 0:
+                if ts >= self.args.start_timesteps and ts > self.args.model_training_freq and self.world_model_buffer.current_size > 0:
                     self._unreal_update_network()
 
                     if ts % self.args.policy_freq == 0:

@@ -46,7 +46,7 @@ def terminal_functions(env_name, obs, action, obs_next):
         done = ~notdone
         done = done[:, None]
         return done
-    elif env_name == "InvertedDoublePendulum":
+    elif env_name == "InvertedDoublePendulum-v2":
         assert len(obs.shape) == len(obs_next.shape) == len(action.shape) == 2
 
         sin1, cos1 = obs_next[:, 1], obs_next[:, 3]

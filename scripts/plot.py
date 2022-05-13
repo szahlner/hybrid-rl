@@ -7,7 +7,7 @@ import seaborn as sns
 sns.set()
 
 # Save path
-save_path = "."
+save_path = "./images/"
 
 # Colors
 nice_colors = [

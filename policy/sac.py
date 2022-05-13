@@ -13,6 +13,7 @@ from copy import deepcopy
 
 from utils.mpi.mpi_utils import sync_grads, sync_networks, sync_scalar
 from utils.replay_buffer import ReplayBuffer
+from utils.terminal_functions import terminal_functions
 from utils.sac.arguments import SacNamespace
 from utils.logger import EpochLogger
 
@@ -343,6 +344,14 @@ class SAC:
                     world_model_r = world_model_r[mask]
                     world_model_actions = world_model_actions[mask]
 
+                    # Terminal function
+                    world_model_d = np.zeros_like(world_model_r, dtype=np.bool)
+                    for n in range(self.world_model_params["max_timesteps"]):
+                        world_model_d[:, n] = terminal_functions(env_name=self.args.env_name,
+                                                                 obs=world_model_obs[:, n],
+                                                                 action=world_model_actions[:, n],
+                                                                 obs_next=world_model_obs[:, n + 1])
+
                     if mask.sum() > 0:
                         for n in range(self.world_model_params["max_timesteps"]):
                             for k in range(len(world_model_obs)):
@@ -351,7 +360,7 @@ class SAC:
                                         world_model_obs[k, n],
                                         world_model_obs[k, n + 1],
                                         world_model_r[k, n],
-                                        False,
+                                        world_model_d[k, n],
                                         world_model_actions[k, n],
                                     ]
                                 )

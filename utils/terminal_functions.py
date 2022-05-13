@@ -46,6 +46,18 @@ def terminal_functions(env_name, obs, action, obs_next):
         done = ~notdone
         done = done[:, None]
         return done
+    elif env_name == "InvertedDoublePendulum":
+        assert len(obs.shape) == len(obs_next.shape) == len(action.shape) == 2
+
+        sin1, cos1 = obs_next[:, 1], obs_next[:, 3]
+        sin2, cos2 = obs_next[:, 2], obs_next[:, 4]
+        theta_1 = np.arctan2(sin1, cos1)
+        theta_2 = np.arctan2(sin2, cos2)
+        y = 0.6 * (cos1 + np.cos(theta_1 + theta_2))
+
+        done = y <= 1
+        done = done[:, None]
+        return done
     else:
         # HalfCheetah-v2 goes in here too
         assert len(obs.shape) == len(obs_next.shape) == len(action.shape) == 2

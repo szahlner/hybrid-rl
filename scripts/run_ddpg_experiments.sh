@@ -53,6 +53,24 @@ python train_ddpg.py --env-name Ant-v2 --seed 123 --max-timesteps 300000 --model
 python train_ddpg.py --env-name Ant-v2 --seed 1234 --max-timesteps 300000 --model-based --model-type stochastic --model-stochastic-percentage 0.10
 python train_ddpg.py --env-name Ant-v2 --seed 12345 --max-timesteps 300000 --model-based --model-type stochastic --model-stochastic-percentage 0.10
 
+# DDPG InvertedPendulum-v2
+python train_ddpg.py --env-name InvertedPendulum-v2 --seed 123 --max-timesteps 100000
+python train_ddpg.py --env-name InvertedPendulum-v2 --seed 1234 --max-timesteps 100000
+python train_ddpg.py --env-name InvertedPendulum-v2 --seed 12345 --max-timesteps 100000
+
+python train_ddpg.py --env-name InvertedPendulum-v2 --seed 123 --max-timesteps 100000 --model-based
+python train_ddpg.py --env-name InvertedPendulum-v2 --seed 1234 --max-timesteps 100000 --model-based
+python train_ddpg.py --env-name InvertedPendulum-v2 --seed 12345 --max-timesteps 100000 --model-based
+
+# DDPG InvertedDoublePendulum-v2
+python train_ddpg.py --env-name InvertedDoublePendulum-v2 --seed 123 --max-timesteps 100000
+python train_ddpg.py --env-name InvertedDoublePendulum-v2 --seed 1234 --max-timesteps 100000
+python train_ddpg.py --env-name InvertedDoublePendulum-v2 --seed 12345 --max-timesteps 100000
+
+python train_ddpg.py --env-name InvertedDoublePendulum-v2 --seed 123 --max-timesteps 100000 --model-based
+python train_ddpg.py --env-name InvertedDoublePendulum-v2 --seed 1234 --max-timesteps 100000 --model-based
+python train_ddpg.py --env-name InvertedDoublePendulum-v2 --seed 12345 --max-timesteps 100000 --model-based
+
 # DDPG Humanoid-v2
 # python train_ddpg.py --env-name Humanoid-v2 --seed 123 --max-timesteps 300000
 # python train_ddpg.py --env-name Humanoid-v2 --seed 1234 --max-timesteps 300000

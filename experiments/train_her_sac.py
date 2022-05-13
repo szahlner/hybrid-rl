@@ -11,6 +11,31 @@ from utils.her.arguments import get_args_her_sac, HerSacNamespace
 from utils.utils import get_env_params, prepare_logger
 
 
+class FetchPushObservationWrapper(gym.ObservationWrapper):
+    def __init__(self, env):
+        super().__init__(env)
+
+    def observation(self, obs):
+        # Modify obs
+
+        grip_pos = obs["observation"][:3]
+        object_pos = obs["observation"][3:6]
+        object_rel_pos = obs["observation"][6:9]
+        gripper_state = obs["observation"][9:10]
+        object_rot = obs["observation"][10:13]
+        object_velp = obs["observation"][13:16]
+        object_velr = obs["observation"][16:19]
+        grip_velp = obs["observation"][19:22]
+        gripper_vel = obs["observation"][22:]
+
+        obs = {
+            "observation": np.concatenate([object_pos, object_rel_pos, object_rot, object_velp, object_velr, grip_pos, gripper_state, grip_velp, gripper_vel], axis=-1),
+            "achieved_goal": obs["achieved_goal"],
+            "desired_goal": obs["desired_goal"],
+        }
+        return obs
+
+
 def train(args: HerSacNamespace):
     # Environments imports
     if "ShadowHand" in args.env_name:
@@ -37,6 +62,9 @@ def train(args: HerSacNamespace):
 
     # Get the environment parameters
     env_params = get_env_params(env)
+
+    if args.env_name == "FetchPush-v1":
+        env = FetchPushObservationWrapper(env)
 
     # Prepare logger
     logger = prepare_logger(args)

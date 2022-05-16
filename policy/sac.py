@@ -305,7 +305,11 @@ class SAC:
                         with torch.no_grad():
                             obs_tensor = torch.tensor(world_model_obs[:, n], dtype=torch.float32, device=device)
                             pi, _, _ = self.actor_network.sample(obs_tensor)
-                            world_model_actions[:, n] = pi.cpu().numpy().squeeze()
+
+                            if pi.size(1) == 1:
+                                world_model_actions[:, n] = pi.cpu().numpy()
+                            else:
+                                world_model_actions[:, n] = pi.cpu().numpy().squeeze()
 
                         diff = np.empty((n_transitions, self.env_params["obs"] + self.env_params["reward"]))
                         confidence = np.empty(

@@ -375,11 +375,12 @@ class SAC:
 
             # Train agent after collecting sufficient data
             if ts >= self.args.start_timesteps:
-                self._update_network()
+                for _ in range(self.args.n_batches):
+                    self._update_network()
 
-                if ts % self.args.policy_freq == 0:
-                    self._soft_update_target_network(self.actor_target_network, self.actor_network)
-                    self._soft_update_target_network(self.critic_target_network, self.critic_network)
+                    if ts % self.args.policy_freq == 0:
+                        self._soft_update_target_network(self.actor_target_network, self.actor_network)
+                        self._soft_update_target_network(self.critic_target_network, self.critic_network)
             else:
                 self.logger.store(ActorLoss=0, CriticLoss=0)
 

@@ -110,6 +110,8 @@ class DdpgNamespace(argparse.Namespace):
     model_n_rollout_transitions: int
     model_stochastic_percentage: float
 
+    n_batches: int
+
 
 def get_args_ddpg():
     parser = argparse.ArgumentParser()
@@ -140,6 +142,9 @@ def get_args_ddpg():
     parser.add_argument("--model-type", type=str, choices=["deterministic", "stochastic"], default="deterministic", help="model type")
     parser.add_argument("--model-based", action="store_true", help="if use model based acceleration")
     parser.add_argument("--model-training-freq", type=int, default=1000, help="frequency of model training")
+
+    # Compare
+    parser.add_argument("--n-batches", type=int, default=1, help="the times to update the network")
 
     args = parser.parse_args(namespace=DdpgNamespace())
 

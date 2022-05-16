@@ -78,9 +78,13 @@ python train_sac.py --env-name InvertedPendulum-v2 --seed 123 --max-timesteps 10
 python train_sac.py --env-name InvertedPendulum-v2 --seed 1234 --max-timesteps 100000 --automatic-entropy-tuning --target-entropy -0.05 --n-batches 2
 python train_sac.py --env-name InvertedPendulum-v2 --seed 12345 --max-timesteps 100000 --automatic-entropy-tuning --target-entropy -0.05 --n-batches 2
 
-# python train_sac.py --env-name InvertedPendulum-v2 --seed 123 --max-timesteps 100000 --automatic-entropy-tuning --target-entropy -0.05 --model-based
-# python train_sac.py --env-name InvertedPendulum-v2 --seed 1234 --max-timesteps 100000 --automatic-entropy-tuning --target-entropy -0.05 --model-based
-# python train_sac.py --env-name InvertedPendulum-v2 --seed 12345 --max-timesteps 100000 --automatic-entropy-tuning --target-entropy -0.05 --model-based
+python train_sac.py --env-name InvertedPendulum-v2 --seed 123 --max-timesteps 100000 --automatic-entropy-tuning --target-entropy -0.05 --model-based --model-training-freq 500
+python train_sac.py --env-name InvertedPendulum-v2 --seed 1234 --max-timesteps 100000 --automatic-entropy-tuning --target-entropy -0.05 --model-based --model-training-freq 500
+python train_sac.py --env-name InvertedPendulum-v2 --seed 12345 --max-timesteps 100000 --automatic-entropy-tuning --target-entropy -0.05 --model-based --model-training-freq 500
+
+python train_sac.py --env-name InvertedPendulum-v2 --seed 123 --max-timesteps 100000 --automatic-entropy-tuning --target-entropy -0.05 --model-based --model-training-freq 500 --model-type stochastic --model-stochastic-percentage 1.00
+python train_sac.py --env-name InvertedPendulum-v2 --seed 1234 --max-timesteps 100000 --automatic-entropy-tuning --target-entropy -0.05 --model-based --model-training-freq 500 --model-type stochastic --model-stochastic-percentage 1.00
+python train_sac.py --env-name InvertedPendulum-v2 --seed 12345 --max-timesteps 100000 --automatic-entropy-tuning --target-entropy -0.05 --model-based --model-training-freq 500 --model-type stochastic --model-stochastic-percentage 1.00
 
 # SAC InvertedDoublePendulum-v2
 # python train_sac.py --env-name InvertedDoublePendulum-v2 --seed 123 --max-timesteps 100000 --automatic-entropy-tuning --target-entropy -0.5
@@ -91,9 +95,14 @@ python train_sac.py --env-name InvertedDoublePendulum-v2 --seed 123 --max-timest
 python train_sac.py --env-name InvertedDoublePendulum-v2 --seed 1234 --max-timesteps 100000 --automatic-entropy-tuning --target-entropy -0.5 --n-batches 2
 python train_sac.py --env-name InvertedDoublePendulum-v2 --seed 12345 --max-timesteps 100000 --automatic-entropy-tuning --target-entropy -0.5 --n-batches 2
 
-# python train_sac.py --env-name InvertedDoublePendulum-v2 --seed 123 --max-timesteps 100000 --automatic-entropy-tuning --target-entropy -0.5 --model-based
-# python train_sac.py --env-name InvertedDoublePendulum-v2 --seed 1234 --max-timesteps 100000 --automatic-entropy-tuning --target-entropy -0.5 --model-based
-# python train_sac.py --env-name InvertedDoublePendulum-v2 --seed 12345 --max-timesteps 100000 --automatic-entropy-tuning --target-entropy -0.5 --model-based
+python train_sac.py --env-name InvertedDoublePendulum-v2 --seed 123 --max-timesteps 100000 --automatic-entropy-tuning --target-entropy -0.5 --model-based --model-training-freq 500
+python train_sac.py --env-name InvertedDoublePendulum-v2 --seed 1234 --max-timesteps 100000 --automatic-entropy-tuning --target-entropy -0.5 --model-based --model-training-freq 500
+python train_sac.py --env-name InvertedDoublePendulum-v2 --seed 12345 --max-timesteps 100000 --automatic-entropy-tuning --target-entropy -0.5 --model-based --model-training-freq 500
+
+python train_sac.py --env-name InvertedDoublePendulum-v2 --seed 123 --max-timesteps 100000 --automatic-entropy-tuning --target-entropy -0.5 --model-based --model-training-freq 500 --model-type stochastic --model-stochastic-percentage 0.80
+python train_sac.py --env-name InvertedDoublePendulum-v2 --seed 1234 --max-timesteps 100000 --automatic-entropy-tuning --target-entropy -0.5 --model-based --model-training-freq 500 --model-type stochastic --model-stochastic-percentage 0.80
+python train_sac.py --env-name InvertedDoublePendulum-v2 --seed 12345 --max-timesteps 100000 --automatic-entropy-tuning --target-entropy -0.5 --model-based --model-training-freq 500 --model-type stochastic --model-stochastic-percentage 0.80
+
 
 # DO NOT TOUCH BELOW THIS LINE
 

@@ -78,9 +78,13 @@ python train_ddpg.py --env-name InvertedPendulum-v2 --seed 123 --max-timesteps 1
 python train_ddpg.py --env-name InvertedPendulum-v2 --seed 1234 --max-timesteps 100000 --n-batches 2
 python train_ddpg.py --env-name InvertedPendulum-v2 --seed 12345 --max-timesteps 100000 --n-batches 2
 
-# python train_ddpg.py --env-name InvertedPendulum-v2 --seed 123 --max-timesteps 100000 --model-based
-# python train_ddpg.py --env-name InvertedPendulum-v2 --seed 1234 --max-timesteps 100000 --model-based
-# python train_ddpg.py --env-name InvertedPendulum-v2 --seed 12345 --max-timesteps 100000 --model-based
+python train_ddpg.py --env-name InvertedPendulum-v2 --seed 123 --max-timesteps 100000 --model-based --model-training-freq 500
+python train_ddpg.py --env-name InvertedPendulum-v2 --seed 1234 --max-timesteps 100000 --model-based --model-training-freq 500
+python train_ddpg.py --env-name InvertedPendulum-v2 --seed 12345 --max-timesteps 100000 --model-based --model-training-freq 500
+
+python train_ddpg.py --env-name InvertedPendulum-v2 --seed 123 --max-timesteps 100000 --model-based --model-training-freq 500 --model-type stochastic --model-stochastic-percentage 1.00
+python train_ddpg.py --env-name InvertedPendulum-v2 --seed 1234 --max-timesteps 100000 --model-based --model-training-freq 500 --model-type stochastic --model-stochastic-percentage 1.00
+python train_ddpg.py --env-name InvertedPendulum-v2 --seed 12345 --max-timesteps 100000 --model-based --model-training-freq 500 --model-type stochastic --model-stochastic-percentage 1.00
 
 # DDPG InvertedDoublePendulum-v2
 # python train_ddpg.py --env-name InvertedDoublePendulum-v2 --seed 123 --max-timesteps 100000
@@ -91,9 +95,13 @@ python train_ddpg.py --env-name InvertedDoublePendulum-v2 --seed 123 --max-times
 python train_ddpg.py --env-name InvertedDoublePendulum-v2 --seed 1234 --max-timesteps 100000 --n-batches 2
 python train_ddpg.py --env-name InvertedDoublePendulum-v2 --seed 12345 --max-timesteps 100000 --n-batches 2
 
-# python train_ddpg.py --env-name InvertedDoublePendulum-v2 --seed 123 --max-timesteps 100000 --model-based
-# python train_ddpg.py --env-name InvertedDoublePendulum-v2 --seed 1234 --max-timesteps 100000 --model-based
-# python train_ddpg.py --env-name InvertedDoublePendulum-v2 --seed 12345 --max-timesteps 100000 --model-based
+python train_ddpg.py --env-name InvertedDoublePendulum-v2 --seed 123 --max-timesteps 100000 --model-based --model-training-freq 500
+python train_ddpg.py --env-name InvertedDoublePendulum-v2 --seed 1234 --max-timesteps 100000 --model-based --model-training-freq 500
+python train_ddpg.py --env-name InvertedDoublePendulum-v2 --seed 12345 --max-timesteps 100000 --model-based --model-training-freq 500
+
+python train_ddpg.py --env-name InvertedDoublePendulum-v2 --seed 123 --max-timesteps 100000 --model-based --model-training-freq 500 --model-type stochastic --model-stochastic-percentage 0.80
+python train_ddpg.py --env-name InvertedDoublePendulum-v2 --seed 1234 --max-timesteps 100000 --model-based --model-training-freq 500 --model-type stochastic --model-stochastic-percentage 0.80
+python train_ddpg.py --env-name InvertedDoublePendulum-v2 --seed 12345 --max-timesteps 100000 --model-based --model-training-freq 500 --model-type stochastic --model-stochastic-percentage 0.80
 
 # DO NOT TOUCH BELOW THIS LINE
 

@@ -22,7 +22,13 @@ def train(args: SacNamespace):
         import highway_env
 
     # Create the environment
-    env = gym.make(args.env_name)
+    if args.env_name == "AntTruncated-v2":
+        from utils.wrapper import AntTruncatedV2ObservationWrapper
+
+        env = gym.make("Ant-v2")
+        env = AntTruncatedV2ObservationWrapper(env)
+    else:
+        env = gym.make(args.env_name)
 
     if args.env_name == "parking-v0":
         env._max_episode_steps = 50

@@ -111,6 +111,7 @@ class DdpgNamespace(argparse.Namespace):
     model_stochastic_percentage: float
 
     n_batches: int
+    model_n_batches: int
 
 
 def get_args_ddpg():
@@ -145,6 +146,7 @@ def get_args_ddpg():
 
     # Compare
     parser.add_argument("--n-batches", type=int, default=1, help="the times to update the network")
+    parser.add_argument("--model-n-batches", type=int, default=1, help="the times to update the network on virtual transitions")
 
     args = parser.parse_args(namespace=DdpgNamespace())
 

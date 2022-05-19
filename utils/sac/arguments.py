@@ -119,6 +119,7 @@ class SacNamespace(argparse.Namespace):
     model_stochastic_percentage: float
 
     n_batches: int
+    model_n_batches: int
 
     alpha: float
     lr_alpha: float
@@ -159,6 +160,7 @@ def get_args_sac():
 
     # Compare
     parser.add_argument("--n-batches", type=int, default=1, help="the times to update the network")
+    parser.add_argument("--model-n-batches", type=int, default=1, help="the times to update the network on virtual transitions")
 
     # Sac
     parser.add_argument("--alpha", type=float, default=0.2, help="Temperature parameter α determines the relative importance of the entropy term against the reward (default: 0.2)")

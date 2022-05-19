@@ -371,11 +371,12 @@ class SAC:
 
                 # Model based section
                 if ts >= self.args.start_timesteps and ts > self.args.model_training_freq and self.world_model_buffer.current_size > 0:
-                    self._unreal_update_network()
+                    for _ in range(self.args.model_n_batches):
+                        self._unreal_update_network()
 
-                    if ts % self.args.policy_freq == 0:
-                        self._soft_update_target_network(self.actor_target_network, self.actor_network)
-                        self._soft_update_target_network(self.critic_target_network, self.critic_network)
+                        if ts % self.args.policy_freq == 0:
+                            self._soft_update_target_network(self.actor_target_network, self.actor_network)
+                            self._soft_update_target_network(self.critic_target_network, self.critic_network)
 
             # Train agent after collecting sufficient data
             if ts >= self.args.start_timesteps:

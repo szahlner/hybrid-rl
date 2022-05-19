@@ -7,7 +7,8 @@ import seaborn as sns
 sns.set()
 
 # Save path
-save_path = "./images/"
+save_path_images = "./results/images/"
+save_path_pdfs = "./results/pdfs/"
 
 # Colors
 nice_colors = [
@@ -100,7 +101,8 @@ for env_name in experiments:
             plt.ylabel("Median Success Rate")
             plt.ylim([-0.03, 1.03])
             plt.legend()
-            plt.savefig(os.path.join(save_path, f"{plot_name}.png"))
+            plt.savefig(os.path.join(save_path_images, f"{plot_name}.png"))
+            plt.savefig(os.path.join(save_path_pdfs, f"{plot_name}.pdf"), format="pdf")
             plt.close()
 
             ##############################
@@ -150,7 +152,8 @@ for env_name in experiments:
             plt.ylabel("Median World Buffer Size")
             plt.ylim([-0.03, 1.03])
             plt.legend()
-            plt.savefig(os.path.join(save_path, f"{plot_name}.png"))
+            plt.savefig(os.path.join(save_path_images, f"{plot_name}.png"))
+            plt.savefig(os.path.join(save_path_pdfs, f"{plot_name}.pdf"), format="pdf")
             plt.close()
         else:
             ##############################
@@ -188,7 +191,8 @@ for env_name in experiments:
             plt.xlim(left=0)
             plt.ylim(bottom=0)
             plt.legend()
-            plt.savefig(os.path.join(save_path, f"{plot_name}.png"))
+            plt.savefig(os.path.join(save_path_images, f"{plot_name}.png"))
+            plt.savefig(os.path.join(save_path_pdfs, f"{plot_name}.pdf"), format="pdf")
             plt.close()
 
             ##############################
@@ -238,7 +242,8 @@ for env_name in experiments:
             plt.ylabel("Median World Buffer Size")
             plt.ylim([-0.03, 1.03])
             plt.legend()
-            plt.savefig(os.path.join(save_path, f"{plot_name}.png"))
+            plt.savefig(os.path.join(save_path_images, f"{plot_name}.png"))
+            plt.savefig(os.path.join(save_path_pdfs, f"{plot_name}.pdf"), format="pdf")
             plt.close()
 
 # plt.show()

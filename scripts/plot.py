@@ -189,7 +189,7 @@ for env_name in experiments:
             plt.ylabel("Average Reward")
             plt.ticklabel_format(axis="x", style="sci", scilimits=(0, 0))
             plt.xlim(left=0)
-            plt.ylim(bottom=0)
+            # plt.ylim(bottom=0)
             plt.legend()
             plt.savefig(os.path.join(save_path_images, f"{plot_name}.png"))
             plt.savefig(os.path.join(save_path_pdfs, f"{plot_name}.pdf"), format="pdf")

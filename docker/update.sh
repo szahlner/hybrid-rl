@@ -10,3 +10,6 @@ rm -r ./shadowhand-gym
 git clone https://github.com/szahlner/hybrid-rl.git
 git clone https://github.com/szahlner/shadowhand-gym.git
 pip3 install -e shadowhand-gym
+
+# Prepare runs
+./prepare-run.sh

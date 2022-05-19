@@ -57,6 +57,6 @@ RUN rm /home/hybrid-rl/Dockerfile
 
 # Install hybrid-rl and shadowhand-gym and prepare to run the experiments
 RUN ./update.sh
-RUN ./prepare-run.sh
+# RUN ./prepare-run.sh
 
 ENTRYPOINT ["/bin/bash"]

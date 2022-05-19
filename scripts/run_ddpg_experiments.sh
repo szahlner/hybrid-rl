@@ -120,17 +120,21 @@ python train_ddpg.py --env-name AntTruncated-v2 --seed 12345 --max-timesteps 300
 # python train_ddpg.py --env-name InvertedDoublePendulum-v2 --seed 1234 --max-timesteps 100000 --model-based --model-training-freq 500 --model-type stochastic --model-stochastic-percentage 0.80
 # python train_ddpg.py --env-name InvertedDoublePendulum-v2 --seed 12345 --max-timesteps 100000 --model-based --model-training-freq 500 --model-type stochastic --model-stochastic-percentage 0.80
 
-# DO NOT TOUCH BELOW THIS LINE
+# Humanoid-v2
 
-# DDPG Humanoid-v2
-# python train_ddpg.py --env-name Humanoid-v2 --seed 123 --max-timesteps 300000
-# python train_ddpg.py --env-name Humanoid-v2 --seed 1234 --max-timesteps 300000
-# python train_ddpg.py --env-name Humanoid-v2 --seed 12345 --max-timesteps 300000
+# DDPG HumanoidTruncated-v2
+python train_ddpg.py --env-name HumanoidTruncated-v2 --seed 123 --max-timesteps 300000
+python train_ddpg.py --env-name HumanoidTruncated-v2 --seed 1234 --max-timesteps 300000
+python train_ddpg.py --env-name HumanoidTruncated-v2 --seed 12345 --max-timesteps 300000
 
-# python train_ddpg.py --env-name Humanoid-v2 --seed 123 --max-timesteps 300000 --model-based
-# python train_ddpg.py --env-name Humanoid-v2 --seed 1234 --max-timesteps 300000 --model-based
-# python train_ddpg.py --env-name Humanoid-v2 --seed 12345 --max-timesteps 300000 --model-based
+python train_ddpg.py --env-name HumanoidTruncated-v2 --seed 123 --max-timesteps 300000 --n-batches 2
+python train_ddpg.py --env-name HumanoidTruncated-v2 --seed 1234 --max-timesteps 300000 --n-batches 2
+python train_ddpg.py --env-name HumanoidTruncated-v2 --seed 12345 --max-timesteps 300000 --n-batches 2
 
-# python train_ddpg.py --env-name Humanoid-v2 --seed 123 --max-timesteps 300000 --model-based --model-type stochastic --model-stochastic-percentage 0.83
-# python train_ddpg.py --env-name Humanoid-v2 --seed 1234 --max-timesteps 300000 --model-based --model-type stochastic --model-stochastic-percentage 0.83
-# python train_ddpg.py --env-name Humanoid-v2 --seed 12345 --max-timesteps 300000 --model-based --model-type stochastic --model-stochastic-percentage 0.83
+python train_ddpg.py --env-name HumanoidTruncated-v2 --seed 123 --max-timesteps 300000 --model-based
+python train_ddpg.py --env-name HumanoidTruncated-v2 --seed 1234 --max-timesteps 300000 --model-based
+python train_ddpg.py --env-name HumanoidTruncated-v2 --seed 12345 --max-timesteps 300000 --model-based
+
+python train_ddpg.py --env-name HumanoidTruncated-v2 --seed 123 --max-timesteps 300000 --model-based --model-type stochastic --model-stochastic-percentage 0.83
+python train_ddpg.py --env-name HumanoidTruncated-v2 --seed 1234 --max-timesteps 300000 --model-based --model-type stochastic --model-stochastic-percentage 0.83
+python train_ddpg.py --env-name HumanoidTruncated-v2 --seed 12345 --max-timesteps 300000 --model-based --model-type stochastic --model-stochastic-percentage 0.83

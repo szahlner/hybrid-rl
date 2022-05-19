@@ -27,7 +27,7 @@ def terminal_functions(env_name, obs, action, obs_next):
         done = ~not_done
         done = done[:, None]
         return done
-    elif env_name == "Ant-v2":
+    elif env_name == "Ant-v2" or env_name == "AntTruncated-v2":
         assert len(obs.shape) == len(obs_next.shape) == len(action.shape) == 2
 
         x = obs_next[:, 0]
@@ -56,6 +56,14 @@ def terminal_functions(env_name, obs, action, obs_next):
         y = 0.6 * (cos1 + np.cos(theta_1 + theta_2))
 
         done = y <= 1
+        done = done[:, None]
+        return done
+    elif env_name == "Humanoid-v2" or env_name == "HumanoidTruncated-v2":
+        assert len(obs.shape) == len(obs_next.shape) == len(action.shape) == 2
+
+        z = obs_next[:, 0]
+        done = (z < 1.0) + (z > 2.0)
+
         done = done[:, None]
         return done
     else:

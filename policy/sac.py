@@ -12,7 +12,7 @@ from typing import Tuple, Union
 from copy import deepcopy
 
 from utils.mpi.mpi_utils import sync_grads, sync_networks, sync_scalar
-from utils.replay_buffer import ReplayBuffer
+from utils.replay_buffer import ReplayBuffer, PrioritizedReplayBuffer
 from utils.terminal_functions import terminal_functions
 from utils.sac.arguments import SacNamespace
 from utils.logger import EpochLogger
@@ -220,7 +220,12 @@ class SAC:
             # Create the replay buffer
             self.world_model_params = deepcopy(self.env_params)
             self.world_model_params["max_timesteps"] = self.args.model_max_rollout_timesteps  # change max timesteps to rollout length
-            self.world_model_buffer = ReplayBuffer(self.world_model_params, self.args.buffer_size)
+
+            if self.args.model_use_per:
+                self.prior_eps = 1e-6  # stability parameter
+                self.world_model_buffer = PrioritizedReplayBuffer(self.world_model_params, self.args.buffer_size)
+            else:
+                self.world_model_buffer = ReplayBuffer(self.world_model_params, self.args.buffer_size)
 
     def learn(self):
         """
@@ -500,7 +505,7 @@ class SAC:
     # update the network
     def _unreal_update_network(self):
         # sample the episodes
-        transitions = self.buffer.sample(self.args.batch_size)
+        transitions = self.world_model_buffer.sample(self.args.batch_size)
 
         # transfer them into the tensor
         obs_tensor = torch.tensor(transitions["obs"], dtype=torch.float32, device=device)
@@ -508,6 +513,7 @@ class SAC:
         actions_tensor = torch.tensor(transitions["actions"], dtype=torch.float32, device=device)
         r_tensor = torch.tensor(transitions["r"], dtype=torch.float32, device=device)
         d_tensor = torch.tensor(transitions["d"], dtype=torch.float32, device=device)
+        weights_tensor = torch.tensor(transitions["weights"], dtype=torch.float32, device=device)
 
         # calculate the target Q value function
         with torch.no_grad():
@@ -518,8 +524,13 @@ class SAC:
             target_q_value = target_q_value.detach()
 
         q1, q2 = self.critic_network(obs_tensor, actions_tensor)
-        q1_loss = F.mse_loss(q1, target_q_value)
-        q2_loss = F.mse_loss(q2, target_q_value)
+
+        if self.args.model_use_per:
+            q1_loss = F.mse_loss(q1 * weights_tensor, target_q_value)
+            q2_loss = F.mse_loss(q2 * weights_tensor, target_q_value)
+        else:
+            q1_loss = F.mse_loss(q1, target_q_value)
+            q2_loss = F.mse_loss(q2, target_q_value)
         critic_loss = q1_loss + q2_loss
 
         # update the critic_network
@@ -530,7 +541,11 @@ class SAC:
 
         pi, log_pi, _ = self.actor_network.sample(obs_tensor)
         q1_pi, q2_pi = self.critic_network(obs_tensor, pi)
-        min_q_pi = torch.min(q1_pi, q2_pi)
+
+        if self.args.model_use_per:
+            min_q_pi = torch.min(q1_pi * weights_tensor, q2_pi * weights_tensor)
+        else:
+            min_q_pi = torch.min(q1_pi, q2_pi)
         actor_loss = ((self.alpha * log_pi) - min_q_pi).mean()
 
         # start to update the network
@@ -551,6 +566,14 @@ class SAC:
             self.alpha = self.log_alpha.exp()
             alpha = sync_scalar(self.alpha.detach().cpu().numpy())
             self.alpha.data.copy_(torch.tensor(alpha, dtype=torch.float32, device=device))
+
+        if self.args.model_use_per:
+            # PER: update priorities
+            new_priorities = (torch.min(q1, q2) - target_q_value).pow(2)
+            new_priorities += ((self.alpha * log_pi) - min_q_pi).pow(2)
+            new_priorities += self.prior_eps
+            new_priorities = new_priorities.data.cpu().numpy().squeeze()
+            self.world_model_buffer.update_priorities(transitions["idx"], new_priorities)
 
     # Do the evaluation
     def _eval_agent(self):

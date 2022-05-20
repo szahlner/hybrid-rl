@@ -361,6 +361,10 @@ class SAC:
                                                                  action=world_model_actions[:, n],
                                                                  obs_next=world_model_obs[:, n + 1])
 
+                    if self.args.model_use_per:
+                        # Clear buffer the hard way
+                        self.world_model_buffer = PrioritizedReplayBuffer(self.world_model_params, self.args.buffer_size)
+
                     if mask.sum() > 0:
                         for n in range(self.world_model_params["max_timesteps"]):
                             for k in range(len(world_model_obs)):

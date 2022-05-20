@@ -89,8 +89,11 @@ for env_name in experiments:
                     WINDOW_SIZE = 1
 
                 success_median = moving_average(np.median(success, axis=-1), WINDOW_SIZE)
-                success_min = moving_average(np.min(success, axis=-1), WINDOW_SIZE)
-                success_max = moving_average(np.max(success, axis=-1), WINDOW_SIZE)
+                success_q75, success_q25 = np.percentile(success, [75, 25], axis=-1)
+                success_min = moving_average(success_q25, WINDOW_SIZE)
+                success_max = moving_average(success_q75, WINDOW_SIZE)
+                # success_min = moving_average(np.min(success, axis=-1), WINDOW_SIZE)
+                # success_max = moving_average(np.max(success, axis=-1), WINDOW_SIZE)
                 epoch = epoch[len(epoch) - len(success_median):]
 
                 plt.plot(epoch, success_median, color=nice_colors[n], label=algo_name)
@@ -177,8 +180,11 @@ for env_name in experiments:
                 WINDOW_SIZE = 5
 
                 reward_mean = moving_average(np.mean(reward, axis=-1), WINDOW_SIZE)
-                reward_min = moving_average(np.min(reward, axis=-1), WINDOW_SIZE)
-                reward_max = moving_average(np.max(reward, axis=-1), WINDOW_SIZE)
+                reward_q75, reward_q25 = np.percentile(reward, [75, 25], axis=-1)
+                reward_min = moving_average(reward_q25, WINDOW_SIZE)
+                reward_max = moving_average(reward_q75, WINDOW_SIZE)
+                # reward_min = moving_average(np.min(reward, axis=-1), WINDOW_SIZE)
+                # reward_max = moving_average(np.max(reward, axis=-1), WINDOW_SIZE)
                 timesteps = timesteps[len(timesteps) - len(reward_mean):]
 
                 plt.plot(timesteps, reward_mean, color=nice_colors[n], label=algo_name)

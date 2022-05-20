@@ -513,7 +513,9 @@ class SAC:
         actions_tensor = torch.tensor(transitions["actions"], dtype=torch.float32, device=device)
         r_tensor = torch.tensor(transitions["r"], dtype=torch.float32, device=device)
         d_tensor = torch.tensor(transitions["d"], dtype=torch.float32, device=device)
-        weights_tensor = torch.tensor(transitions["weights"], dtype=torch.float32, device=device)
+
+        if self.args.model_use_per:
+            weights_tensor = torch.tensor(transitions["weights"], dtype=torch.float32, device=device)
 
         # calculate the target Q value function
         with torch.no_grad():

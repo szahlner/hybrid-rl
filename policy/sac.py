@@ -12,7 +12,7 @@ from typing import Tuple, Union
 from copy import deepcopy
 
 from utils.mpi.mpi_utils import sync_grads, sync_networks, sync_scalar
-from utils.replay_buffer import ReplayBuffer, PrioritizedReplayBuffer
+from utils.replay_buffer import ReplayBuffer, PrioritizedReplayBuffer, NStepReplayBuffer
 from utils.terminal_functions import terminal_functions
 from utils.sac.arguments import SacNamespace
 from utils.logger import EpochLogger
@@ -224,6 +224,13 @@ class SAC:
             if self.args.model_use_per:
                 self.prior_eps = 1e-6  # stability parameter
                 self.world_model_buffer = PrioritizedReplayBuffer(self.world_model_params, self.args.buffer_size)
+            elif self.args.model_use_n_step:
+                self.world_model_buffer = NStepReplayBuffer(
+                    self.world_model_params,
+                    self.args.buffer_size,
+                    gamma=self.args.gamma,
+                    n_step=self.world_model_params["max_timesteps"],
+                )
             else:
                 self.world_model_buffer = ReplayBuffer(self.world_model_params, self.args.buffer_size)
 

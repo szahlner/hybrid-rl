@@ -1,6 +1,7 @@
 import threading
 import numpy as np
-from typing import List
+from typing import List, Tuple
+from collections import deque
 
 from utils.segment_tree import MinSegmentTree, SumSegmentTree
 
@@ -179,3 +180,81 @@ class PrioritizedReplayBuffer:
         weight = weight / max_weight
 
         return weight
+
+
+class NStepReplayBuffer:
+    def __init__(self, env_params: dict, buffer_size: int, gamma: float = 0.99, n_step: int = 1) -> None:
+        self.env_params = env_params
+
+        # Memory management
+        self.current_size = 0
+        self.pointer = 0
+        self.n_transitions_stored = 0
+        self.max_size = buffer_size
+
+        # Create the buffer to store info
+        self.buffers = {
+            "obs": np.empty([buffer_size, self.env_params["obs"]]),
+            "obs_next": np.empty([buffer_size, self.env_params["obs"]]),
+            "r": np.empty([buffer_size, 1]),
+            "d": np.empty([buffer_size, 1]),
+            "actions": np.empty([buffer_size, self.env_params["action"]]),
+        }
+
+        # Thread lock
+        self.lock = threading.Lock()
+
+        # N-step
+        self.gamma = gamma
+        self.n_step = n_step
+        self.n_step_buffer = deque(maxlen=n_step)
+
+    # Store the episode
+    def store(self, batch: List[np.ndarray]):
+        self.n_step_buffer.append(batch)
+
+        # Single step transitions not ready
+        if len(self.n_step_buffer) < self.n_step:
+            return
+
+        obs, obs_next, r, d, actions = self._get_n_step_info()
+
+        with self.lock:
+            self.buffers["obs"][self.pointer] = obs
+            self.buffers["obs_next"][self.pointer] = obs_next
+            self.buffers["r"][self.pointer] = r
+            self.buffers["d"][self.pointer] = d
+            self.buffers["actions"][self.pointer] = actions
+
+        self.pointer = (self.pointer + 1) % self.max_size
+        self.current_size = min(self.current_size + 1, self.max_size)
+        self.n_transitions_stored += 1
+
+    def _get_n_step_info(self) -> Tuple[np.ndarray, np.ndarray, float, bool, np.ndarray]:
+        """Return n step rew, next_obs, and done."""
+        # Info of the last transition
+        _, obs_next, rew, done, _ = self.n_step_buffer[-1]
+
+        for transition in reversed(list(self.n_step_buffer)[:-1]):
+            _, o_n, r, d, _ = transition
+
+            rew = r + self.gamma * rew * (1 - d)
+            obs_next, done = (o_n, d) if d else (obs_next, done)
+
+        obs, _, _, _, action = self.n_step_buffer[0]
+
+        return obs, obs_next, rew, done, action
+
+    # Sample the data from the replay buffer
+    def sample(self, batch_size: int):
+        idx = np.random.randint(0, self.current_size, size=batch_size)
+
+        transitions = {
+            "obs": self.buffers["obs"][idx],
+            "obs_next": self.buffers["obs_next"][idx],
+            "r": self.buffers["r"][idx],
+            "d": self.buffers["d"][idx],
+            "actions": self.buffers["actions"][idx],
+        }
+
+        return transitions

@@ -27,6 +27,11 @@ def train(args: DdpgNamespace):
 
         env = gym.make("Ant-v2")
         env = AntTruncatedV2ObservationWrapper(env)
+    elif args.env_name == "HumanoidTruncated-v2":
+        from utils.wrapper import HumanoidTruncatedV2ObservationWrapper
+
+        env = gym.make("Humanoid-v2")
+        env = HumanoidTruncatedV2ObservationWrapper(env)
     else:
         env = gym.make(args.env_name)
 

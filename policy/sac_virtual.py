@@ -586,6 +586,8 @@ class SAC:
             self.alpha = self.log_alpha.exp()
             alpha = sync_scalar(self.alpha.detach().cpu().numpy())
             self.alpha.data.copy_(torch.tensor(alpha, dtype=torch.float32, device=device))
+        else:
+            alpha_loss = torch.tensor(0.).to(device)
 
         if self.args.model_use_per:
             # PER: update priorities
@@ -594,6 +596,12 @@ class SAC:
             new_priorities += self.prior_eps
             new_priorities = new_priorities.data.cpu().numpy().squeeze()
             self.world_model_buffer.update_priorities(transitions["idx"], new_priorities)
+
+        self.logger.store(
+            ActorLoss=actor_loss.item(),
+            CriticLoss=critic_loss.item(),
+            AlphaLoss=alpha_loss.item(),
+        )
 
     # Do the evaluation
     def _eval_agent(self):

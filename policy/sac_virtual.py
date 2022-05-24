@@ -250,10 +250,6 @@ class SAC:
 
         # Start to collect samples
         for ts in range(int(self.args.max_timesteps)):
-
-            if ts == 999:
-                print("")
-
             if MPI.COMM_WORLD.Get_rank() == 0:
                 # Select action randomly or according to policy
                 if ts < self.args.start_timesteps:
@@ -287,7 +283,10 @@ class SAC:
             # Train agent after collecting sufficient data
             if ts >= self.args.start_timesteps:
                 for _ in range(self.args.n_batches):
-                    self._update_network()
+                    if MPI.COMM_WORLD.Get_rank() == 0:
+                        self._update_network()
+                    else:
+                        self._unreal_update_network()
 
                     if ts % self.args.policy_freq == 0:
                         self._soft_update_target_network(self.actor_target_network, self.actor_network)

@@ -283,7 +283,10 @@ class SAC:
             # Train agent after collecting sufficient data
             if ts >= self.args.start_timesteps:
                 for _ in range(self.args.n_batches):
-                    self._update_network()
+                    if MPI.COMM_WORLD.Get_rank() == 0:
+                        self._update_network()
+                    else:
+                        self._unreal_update_network()
 
                     if ts % self.args.policy_freq == 0:
                         self._soft_update_target_network(self.actor_target_network, self.actor_network)
@@ -393,7 +396,7 @@ class SAC:
                             confidence[:, self.model_chunks[k]:self.model_chunks[k + 1]] = confidence_
 
                         if self.args.model_type == "deterministic":
-                            world_model_mask[:, n] = np.all(np.where(confidence < 1, True, False), axis=-1)
+                            world_model_mask[:, n] = np.all(np.where(confidence < 0.5, True, False), axis=-1)
                         else:
                             world_model_mask[:, n] = np.sum(confidence, axis=-1)
 
@@ -481,7 +484,7 @@ class SAC:
         # update the critic_network
         self.critic_optim.zero_grad()
         critic_loss.backward()
-        # sync_grads(self.critic_network)
+        sync_grads(self.critic_network)
         self.critic_optim.step()
 
         pi, log_pi, _ = self.actor_network.sample(obs_tensor)
@@ -492,7 +495,7 @@ class SAC:
         # start to update the network
         self.actor_optim.zero_grad()
         actor_loss.backward()
-        # sync_grads(self.actor_network)
+        sync_grads(self.actor_network)
         self.actor_optim.step()
 
         if self.args.automatic_entropy_tuning:
@@ -505,8 +508,8 @@ class SAC:
             # self.alpha = self.log_alpha.cpu().exp().item()
             # self.alpha = sync_scalar(self.alpha)
             self.alpha = self.log_alpha.exp()
-            alpha = self.alpha.detach().cpu().numpy()
-            # alpha = sync_scalar(self.alpha.detach().cpu().numpy())
+            # alpha = self.alpha.detach().cpu().numpy()
+            alpha = sync_scalar(self.alpha.detach().cpu().numpy())
             self.alpha.data.copy_(torch.tensor(alpha, dtype=torch.float32, device=device))
         else:
             alpha_loss = torch.tensor(0.).to(device)

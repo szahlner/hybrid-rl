@@ -2,6 +2,7 @@ from mpi4py import MPI
 import numpy as np
 import torch
 
+from copy import deepcopy
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -50,6 +51,36 @@ def mpi_statistics_scalar(x, with_min_and_max=False):
         global_max = mpi_op(np.max(x) if len(x) > 0 else -np.inf, op=MPI.MAX)
         return mean, std, global_min, global_max
     return mean, std
+
+
+def sync_replay_buffer(replay_buffer):
+    comm = MPI.COMM_WORLD
+
+    buffers = None
+    if comm.Get_rank() == 0:
+        buffers = deepcopy(replay_buffer.buffers)
+        buffers["current_size"] = replay_buffer.current_size
+        buffers["n_transitions_stored"] = replay_buffer.n_transitions_stored
+        buffers["pointer"] = replay_buffer.pointer
+    buffers = comm.bcast(buffers, root=0)
+
+    if comm.Get_rank() > 0:
+        for key in buffers.keys():
+            if key == "current_size":
+                replay_buffer.current_size = buffers["current_size"]
+                continue
+            elif key == "n_transitions_stored":
+                replay_buffer.n_transitions_stored = buffers["n_transitions_stored"]
+                continue
+            elif key == "pointer":
+                replay_buffer.pointer = buffers["pointer"]
+                continue
+            replay_buffer.buffers[key] = buffers[key]
+
+
+def sync_np_array(array):
+    comm = MPI.COMM_WORLD
+    comm.Bcast(array, root=0)
 
 
 def sync_networks(network):

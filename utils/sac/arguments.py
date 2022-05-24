@@ -121,6 +121,8 @@ class SacNamespace(argparse.Namespace):
     model_use_per: bool
     model_use_n_step: bool
 
+    model_virtual_distribution: bool
+
     n_batches: int
     model_n_batches: int
 
@@ -164,6 +166,9 @@ def get_args_sac():
     # Buffer
     parser.add_argument("--model-use-per", action="store_true", help="if use per")
     parser.add_argument("--model-use-n-step", action="store_true", help="if use n-step")
+
+    # MPI
+    parser.add_argument("--model-virtual-distribution", action="store_true", help="if use virtual distribution")
 
     # Compare
     parser.add_argument("--n-batches", type=int, default=1, help="the times to update the network")

@@ -65,6 +65,11 @@ def train(args: SacNamespace):
 
     # Initialize agent / policy
     if args.model_virtual_distribution:
+        import sys, time
+        print(f'rank: {MPI.COMM_WORLD.Get_rank()} has PID: {os.getpid()}')
+        sys.stdout.flush()
+        time.sleep(15)
+
         agent = SACVirtual(args, env, env_params, logger)
     else:
         agent = SAC(args, env, env_params, logger)

@@ -78,6 +78,12 @@ def sync_replay_buffer(replay_buffer):
             replay_buffer.buffers[key] = buffers[key]
 
 
+def sync_dict(data):
+    comm = MPI.COMM_WORLD
+    data = comm.bcast(data, root=0)
+    return data
+
+
 def sync_np_array(array):
     comm = MPI.COMM_WORLD
     comm.Bcast(array, root=0)

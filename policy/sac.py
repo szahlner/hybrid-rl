@@ -51,13 +51,13 @@ class Critic(nn.Module):
         # Q1 architecture
         self.fc1 = nn.Linear(env_params["obs"] + env_params["goal"] + env_params["action"], 256)
         self.fc2 = nn.Linear(256, 256)
-        self.fc3 = nn.Linear(256, 256)  #
+        # self.fc3 = nn.Linear(256, 256)  #
         self.q_out_1 = nn.Linear(256, 1)
 
         # Q2 architecture
         self.fc4 = nn.Linear(env_params["obs"] + env_params["goal"] + env_params["action"], 256)
         self.fc5 = nn.Linear(256, 256)
-        self.fc6 = nn.Linear(256, 256)  #
+        # self.fc6 = nn.Linear(256, 256)  #
         self.q_out_2 = nn.Linear(256, 1)
 
         self.apply(init_weights)
@@ -68,13 +68,13 @@ class Critic(nn.Module):
         # Q1 architecture
         x1 = torch.relu(self.fc1(x))
         x1 = torch.relu(self.fc2(x1))
-        x1 = torch.relu(self.fc3(x1))  #
+        # x1 = torch.relu(self.fc3(x1))  #
         q_value_1 = self.q_out_1(x1)
 
         # Q2 architecture
         x2 = torch.relu(self.fc4(x))
         x2 = torch.relu(self.fc5(x2))
-        x2 = torch.relu(self.fc6(x2))  #
+        # x2 = torch.relu(self.fc6(x2))  #
         q_value_2 = self.q_out_2(x2)
 
         return q_value_1, q_value_2
@@ -94,7 +94,7 @@ class Actor(nn.Module):
 
         self.fc1 = nn.Linear(env_params["obs"] + env_params["goal"], 256)
         self.fc2 = nn.Linear(256, 256)
-        self.fc3 = nn.Linear(256, 256)  #
+        # self.fc3 = nn.Linear(256, 256)  #
 
         self.mean_linear = nn.Linear(256, env_params["action"])
         self.log_std_linear = nn.Linear(256, env_params["action"])
@@ -104,7 +104,7 @@ class Actor(nn.Module):
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         x = torch.relu(self.fc1(x))
         x = torch.relu(self.fc2(x))
-        x = torch.relu(self.fc3(x))  #
+        # x = torch.relu(self.fc3(x))  #
 
         mean = self.mean_linear(x)
         log_std = self.log_std_linear(x)

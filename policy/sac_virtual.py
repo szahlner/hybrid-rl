@@ -393,7 +393,7 @@ class SAC:
                             confidence[:, self.model_chunks[k]:self.model_chunks[k + 1]] = confidence_
 
                         if self.args.model_type == "deterministic":
-                            world_model_mask[:, n] = np.all(np.where(confidence < 0.5, True, False), axis=-1)
+                            world_model_mask[:, n] = np.all(np.where(confidence < 1, True, False), axis=-1)
                         else:
                             world_model_mask[:, n] = np.sum(confidence, axis=-1)
 

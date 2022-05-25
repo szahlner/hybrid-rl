@@ -481,7 +481,7 @@ class SAC:
         # update the critic_network
         self.critic_optim.zero_grad()
         critic_loss.backward()
-        # sync_grads(self.critic_network)
+        sync_grads(self.critic_network)
         self.critic_optim.step()
 
         pi, log_pi, _ = self.actor_network.sample(obs_tensor)
@@ -492,7 +492,7 @@ class SAC:
         # start to update the network
         self.actor_optim.zero_grad()
         actor_loss.backward()
-        # sync_grads(self.actor_network)
+        sync_grads(self.actor_network)
         self.actor_optim.step()
 
         if self.args.automatic_entropy_tuning:
@@ -505,8 +505,8 @@ class SAC:
             # self.alpha = self.log_alpha.cpu().exp().item()
             # self.alpha = sync_scalar(self.alpha)
             self.alpha = self.log_alpha.exp()
-            alpha = self.alpha.detach().cpu().numpy()
-            # alpha = sync_scalar(self.alpha.detach().cpu().numpy())
+            # alpha = self.alpha.detach().cpu().numpy()
+            alpha = sync_scalar(self.alpha.detach().cpu().numpy())
             self.alpha.data.copy_(torch.tensor(alpha, dtype=torch.float32, device=device))
         else:
             alpha_loss = torch.tensor(0.).to(device)

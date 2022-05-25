@@ -11,7 +11,7 @@ from mpi4py import MPI
 from typing import Tuple, Union
 from copy import deepcopy
 
-from utils.mpi.mpi_utils import sync_grads, sync_networks, sync_scalar, sync_replay_buffer
+from utils.mpi.mpi_utils import sync_grads, sync_networks, sync_scalar, sync_replay_buffer, sync_dict
 from utils.replay_buffer import ReplayBuffer, PrioritizedReplayBuffer, NStepReplayBuffer
 from utils.terminal_functions import terminal_functions
 from utils.sac.arguments import SacNamespace
@@ -250,6 +250,8 @@ class SAC:
 
         # Start to collect samples
         for ts in range(int(self.args.max_timesteps)):
+            transition = {}  # for syncing
+
             if MPI.COMM_WORLD.Get_rank() == 0:
                 # Select action randomly or according to policy
                 if ts < self.args.start_timesteps:
@@ -269,6 +271,14 @@ class SAC:
                 obs = obs_next
                 episode_reward += reward
 
+                transition = {
+                    "obs": obs.copy(),
+                    "obs_next": obs_next.copy(),
+                    "r": np.array([[reward]]).copy(),
+                    "d": np.array([[done]]).copy(),
+                    "action": action.copy(),
+                }
+
                 if done:
                     self.logger.store(EpisodeReward=episode_reward)
 
@@ -279,6 +289,19 @@ class SAC:
                     episode_num += 1
             else:
                 self.logger.store(EpisodeReward=0)
+
+            transition = sync_dict(transition)
+            if MPI.COMM_WORLD.Get_rank() > 0:
+                # Store data in replay buffer
+                self.buffer.store(
+                    batch=[
+                        transition["obs"].copy(),
+                        transition["obs_next"].copy(),
+                        transition["r"].copy(),
+                        transition["d"].copy(),
+                        transition["action"].copy()
+                    ]
+                )
 
             # Train agent after collecting sufficient data
             if ts >= self.args.start_timesteps:
@@ -324,7 +347,7 @@ class SAC:
             # Model based section
             if self.args.model_based:
                 if ts % self.args.model_training_freq == 0 and ts != 0:
-                    sync_replay_buffer(self.buffer)
+                    # sync_replay_buffer(self.buffer)
                     transitions = self.buffer.sample(self.args.model_n_training_transitions)  # 10000
 
                     # Train chunked

@@ -32,6 +32,7 @@ class SAC(object):
         self.num_min = 2
         self.num_Q = 10
         self.mse_criterion = nn.MSELoss()
+        self.args = args
 
         self.gamma = args.gamma
         self.tau = args.tau
@@ -135,61 +136,63 @@ class SAC(object):
             self.q_optimizer_list[q_i].zero_grad()
         q_loss_all.backward()
 
-        # qf1, qf2 = self.critic(state_batch, action_batch)  # Two Q-functions to mitigate positive bias in the policy improvement step
+        if (updates + 1) % self.args.num_train_repeat == 0:
+            # qf1, qf2 = self.critic(state_batch, action_batch)  # Two Q-functions to mitigate positive bias in the policy improvement step
 
-        # qf1_loss = F.mse_loss(qf1, next_q_value)  # JQ = 𝔼(st,at)~D[0.5(Q1(st,at) - r(st,at) - γ(𝔼st+1~p[V(st+1)]))^2]
-        # qf2_loss = F.mse_loss(qf2, next_q_value)  # JQ = 𝔼(st,at)~D[0.5(Q1(st,at) - r(st,at) - γ(𝔼st+1~p[V(st+1)]))^2]
+            # qf1_loss = F.mse_loss(qf1, next_q_value)  # JQ = 𝔼(st,at)~D[0.5(Q1(st,at) - r(st,at) - γ(𝔼st+1~p[V(st+1)]))^2]
+            # qf2_loss = F.mse_loss(qf2, next_q_value)  # JQ = 𝔼(st,at)~D[0.5(Q1(st,at) - r(st,at) - γ(𝔼st+1~p[V(st+1)]))^2]
 
-        a_tilda, log_pi, _ = self.policy.sample(state_batch)
+            a_tilda, log_pi, _ = self.policy.sample(state_batch)
 
-        # qf1_pi, qf2_pi = self.critic(state_batch, pi)
-        # min_qf_pi = torch.min(qf1_pi, qf2_pi)
+            # qf1_pi, qf2_pi = self.critic(state_batch, pi)
+            # min_qf_pi = torch.min(qf1_pi, qf2_pi)
 
-        # policy_loss = ((self.alpha * log_pi) - min_qf_pi).mean()  # Jπ = 𝔼st∼D,εt∼N[α * logπ(f(εt;st)|st) − Q(st,f(εt;st))]
+            # policy_loss = ((self.alpha * log_pi) - min_qf_pi).mean()  # Jπ = 𝔼st∼D,εt∼N[α * logπ(f(εt;st)|st) − Q(st,f(εt;st))]
 
-        q_a_tilda_list = []
-        for sample_idx in range(self.num_Q):
-            self.q_net_list[sample_idx].requires_grad_(False)
-            q_a_tilda = self.q_net_list[sample_idx](torch.cat([state_batch, a_tilda], 1))
-            q_a_tilda_list.append(q_a_tilda)
-        q_a_tilda_cat = torch.cat(q_a_tilda_list, 1)
-        ave_q = torch.mean(q_a_tilda_cat, dim=1, keepdim=True)
-        policy_loss = (self.alpha * log_pi - ave_q).mean()
-        self.policy_optim.zero_grad()
-        policy_loss.backward()
-        for sample_idx in range(self.num_Q):
-            self.q_net_list[sample_idx].requires_grad_(True)
+            q_a_tilda_list = []
+            for sample_idx in range(self.num_Q):
+                self.q_net_list[sample_idx].requires_grad_(False)
+                q_a_tilda = self.q_net_list[sample_idx](torch.cat([state_batch, a_tilda], 1))
+                q_a_tilda_list.append(q_a_tilda)
+            q_a_tilda_cat = torch.cat(q_a_tilda_list, 1)
+            ave_q = torch.mean(q_a_tilda_cat, dim=1, keepdim=True)
+            policy_loss = (self.alpha * log_pi - ave_q).mean()
+            self.policy_optim.zero_grad()
+            policy_loss.backward()
+            for sample_idx in range(self.num_Q):
+                self.q_net_list[sample_idx].requires_grad_(True)
 
-        self.policy_optim.zero_grad()
-        policy_loss.backward()
-        # self.policy_optim.step()
+            self.policy_optim.zero_grad()
+            policy_loss.backward()
+            # self.policy_optim.step()
 
-        # self.critic_optim.zero_grad()
-        # (qf1_loss + qf2_loss).backward()
-        # self.critic_optim.step()
+            # self.critic_optim.zero_grad()
+            # (qf1_loss + qf2_loss).backward()
+            # self.critic_optim.step()
 
-        # self.critic_optim.zero_grad()
-        # qf2_loss.backward()
-        # self.critic_optim.step()
+            # self.critic_optim.zero_grad()
+            # qf2_loss.backward()
+            # self.critic_optim.step()
 
-        if self.automatic_entropy_tuning:
-            alpha_loss = -(self.log_alpha * (log_pi + self.target_entropy).detach()).mean()
+            if self.automatic_entropy_tuning:
+                alpha_loss = -(self.log_alpha * (log_pi + self.target_entropy).detach()).mean()
 
-            self.alpha_optim.zero_grad()
-            alpha_loss.backward()
-            self.alpha_optim.step()
+                self.alpha_optim.zero_grad()
+                alpha_loss.backward()
+                self.alpha_optim.step()
 
-            self.alpha = self.log_alpha.exp()
-            alpha_tlogs = self.alpha.clone()  # For TensorboardX logs
-        else:
-            alpha_loss = torch.tensor(0.).to(self.device)
-            alpha_tlogs = torch.tensor(self.alpha)  # For TensorboardX logs
+                self.alpha = self.log_alpha.exp()
+                alpha_tlogs = self.alpha.clone()  # For TensorboardX logs
+            else:
+                alpha_loss = torch.tensor(0.).to(self.device)
+                alpha_tlogs = torch.tensor(self.alpha)  # For TensorboardX logs
 
         """update networks"""
         for q_i in range(self.num_Q):
             self.q_optimizer_list[q_i].step()
 
-        self.policy_optim.step()
+        if (updates + 1) % self.args.num_train_repeat == 0:
+            self.policy_optim.step()
 
         if updates % self.target_update_interval == 0:
             # polyak averaged Q target networks

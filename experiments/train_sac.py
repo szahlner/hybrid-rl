@@ -9,6 +9,7 @@ from gym.wrappers import FilterObservation, FlattenObservation
 
 from policy.sac import SAC
 from policy.sac_virtual import SAC as SACVirtual
+from policy.sac_simple import SAC as SACSimple
 from utils.sac.arguments import get_args_sac, SacNamespace
 from utils.utils import get_env_params, prepare_logger
 
@@ -67,6 +68,7 @@ def train(args: SacNamespace):
     if args.model_virtual_distribution:
         agent = SACVirtual(args, env, env_params, logger)
     else:
+        # agent = SACSimple(args, env, env_params, logger)
         agent = SAC(args, env, env_params, logger)
     agent.learn()
 

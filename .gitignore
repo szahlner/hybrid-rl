@@ -159,6 +159,7 @@ venv
 # rl-baselines3-zoo-master ignore
 logs
 results
+runs
 
 # files for now
 train_trifinger.py

@@ -98,8 +98,8 @@ agent = SAC(env.observation_space.shape[0], env.action_space, args)
 
 # Tensorboard
 writer = SummaryWriter(
-    'runs/{}_SAC_{}_{}_{}'.format(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"), args.env_name, args.policy,
-                                  "autotune" if args.automatic_entropy_tuning else ""))
+    'runs/{}_SAC_{}_{}_{}_{}'.format(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"), args.env_name, args.policy,
+                                  "autotune" if args.automatic_entropy_tuning else "", "her" if args.her else ""))
 
 # Memory
 memory = ReplayMemory(args.replay_size, args.seed)
@@ -158,13 +158,19 @@ for i_episode in itertools.count(1):
         if args.her:
             # Append to episode trajectory
             episode_trajectory.append(Experience(state, action, reward, next_state, done, episode_reward))
-            reward = float(reward > goal)
+            reward = float(episode_reward > goal)
 
         memory.push(state, action, reward, next_state, mask)  # Append transition to memory
 
         state = next_state
 
     if args.her:
+        # Adjust goal
+        if i_episode == 1:
+            goal = episode_reward
+        else:
+            gaol = episode_reward if episode_reward > goal else goal
+
         # Fill up replay memory
         steps_taken = len(episode_trajectory)
         for t in range(steps_taken):
@@ -180,7 +186,7 @@ for i_episode in itertools.count(1):
     if total_numsteps > args.num_steps:
         break
 
-    writer.add_scalar('reward/train', episode_reward, i_episode)
+    writer.add_scalar('reward/train', episode_reward, total_numsteps)
     print("Episode: {}, total numsteps: {}, episode steps: {}, reward: {}".format(i_episode, total_numsteps,
                                                                                   episode_steps,
                                                                                   round(episode_reward, 2)))
@@ -202,7 +208,7 @@ for i_episode in itertools.count(1):
             avg_reward += episode_reward
         avg_reward /= episodes
 
-        writer.add_scalar('avg_reward/test', avg_reward, i_episode)
+        writer.add_scalar('avg_reward/test', avg_reward, total_numsteps)
 
         print("----------------------------------------")
         print("Test Episodes: {}, Avg. Reward: {}".format(episodes, round(avg_reward, 2)))

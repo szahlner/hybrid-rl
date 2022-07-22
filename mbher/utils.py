@@ -1,6 +1,11 @@
+import random
+
 import numpy as np
 import math
 import torch
+import gym
+
+from gym import spaces
 
 
 def create_log_gaussian(mean, log_std, t):
@@ -47,3 +52,60 @@ def termination_fn(env_name, obs, act, next_obs):
         done = ~not_done
         done = done[:, None]
         return done
+
+
+class LocomotiveGoalWrapper(gym.Wrapper):
+    def __init__(self, env, goal):
+        super().__init__(env)
+        self.env = env
+        self.goals = goal["goals"]
+        self.goal_scaler = goal["scaler"]
+
+        self.achieved_goal = 0
+        self.desired_goal = self._get_goal()
+
+        goal_dim = np.prod(self.desired_goal.shape).astype(int)
+        observation_space = np.prod(self.env.observation_space.shape)
+
+        self.observation_space = spaces.Dict(
+            dict(
+                observation=spaces.Box(-np.inf, np.inf, shape=(observation_space,)),
+                achieved_goal=spaces.Box(-np.inf, np.inf, shape=(goal_dim,)),
+                desired_goal=spaces.Box(-np.inf, np.inf, shape=(goal_dim,)),
+            )
+        )
+
+        self._max_episode_steps = env._max_episode_steps
+
+    def step(self, action):
+        obs_next, reward, done, info = self.env.step(action)
+
+        self.achieved_goal += reward / self.goal_scaler
+        reward = self.compute_reward(self.achieved_goal, self.desired_goal, info)
+
+        obs_next = {
+            "observation": obs_next,
+            "achieved_goal": self.achieved_goal,
+            "desired_goal": self.desired_goal,
+        }
+
+        return obs_next, reward, done, info
+
+    def reset(self, **kwargs):
+        self.achieved_goal = 0
+        self.desired_goal = self._get_goal()
+
+        observation = self.env.reset()
+
+        return {
+            "observation": observation,
+            "achieved_goal": self.achieved_goal,
+            "desired_goal": self.desired_goal,
+        }
+
+    def compute_reward(self, achieved_goal, desired_goal, info):
+        return 0.0 if achieved_goal > desired_goal else -1.0
+
+    def _get_goal(self):
+        idx = random.randint(0, len(self.goals) - 1)
+        return np.array([self.goals[idx]])

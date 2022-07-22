@@ -53,6 +53,8 @@ parser.add_argument('--her', action="store_true",
                     help='use HER (default: False)')
 parser.add_argument('--model_based', action="store_true",
                     help='use Model-based (default: False)')
+parser.add_argument('--exploration_rate', type=float, default=0.3, metavar='N',
+                    help='exploration rate to use (default: 0.3)')
 args = parser.parse_args()
 
 args.cuda = True if torch.cuda.is_available() else False
@@ -70,9 +72,20 @@ if torch.cuda.is_available():
 
 # HER
 if args.her:
-    Experience = namedtuple("Experience", field_names="state action reward next_state done reward_sum")
+    Experience = namedtuple("Experience", field_names="state_o state_ag state_g action reward next_state_o next_state_ag next_state_g done")
     future_k = 4
-    goal = np.inf  # Unreachable goal
+
+    goal_min = 500
+    goal_max = 20000
+    goal_scaler = goal_max
+    goals = np.linspace(goal_min, goal_max, int(goal_max/500)) / goal_scaler  # Unreachable goal
+
+    from mbher.utils import LocomotiveGoalWrapper
+    g = {
+        "goals": goals,
+        "scaler": goal_scaler,
+    }
+    env = LocomotiveGoalWrapper(env, g)
 
 # Model-based
 if args.model_based:
@@ -94,15 +107,55 @@ if args.model_based:
     world_model_trained = False
 
 # Agent
-agent = SAC(env.observation_space.shape[0], env.action_space, args)
+if args.her:
+    observation_dim = env.observation_space["observation"].shape[0]
+    goal_dim = env.observation_space["desired_goal"].shape[0]
+    agent = SAC(observation_dim + goal_dim, env.action_space, args)
+else:
+    agent = SAC(env.observation_space.shape[0], env.action_space, args)
 
 # Tensorboard
 writer = SummaryWriter(
-    'runs/{}_SAC_{}_{}_{}_{}'.format(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"), args.env_name, args.policy,
-                                  "autotune" if args.automatic_entropy_tuning else "", "her" if args.her else ""))
+    'runs/{}_SAC_{}_{}{}{}'.format(datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
+                                   args.env_name,
+                                   args.policy,
+                                   "_autotune" if args.automatic_entropy_tuning else "",
+                                   "_her" if args.her else "")
+)
 
 # Memory
 memory = ReplayMemory(args.replay_size, args.seed)
+
+# Exploration Loop
+total_numsteps = 0
+
+while total_numsteps < args.start_steps:
+    episode_reward = 0
+    episode_steps = 0
+    done = False
+    state = env.reset()
+
+    while not done and total_numsteps < args.start_steps:
+        action = env.action_space.sample()  # Sample random action
+
+        next_state, reward, done, _ = env.step(action)  # Step
+        episode_steps += 1
+        total_numsteps += 1
+        episode_reward += reward
+
+        # Ignore the "done" signal if it comes from hitting the time horizon.
+        # (https://github.com/openai/spinningup/blob/master/spinup/algos/sac/sac.py)
+        mask = 1 if episode_steps == env._max_episode_steps else float(not done)
+
+        if args.her:
+            state_ = np.concatenate((state["observation"], state["desired_goal"]), axis=-1)
+            next_state_ = np.concatenate((next_state["observation"], next_state["desired_goal"]), axis=-1)
+        else:
+            state_ = state
+            next_state_ = next_state
+        memory.push(state_, action, reward, next_state_, mask)  # Append transition to memory
+
+        state = next_state
 
 # Training Loop
 total_numsteps = 0
@@ -116,12 +169,17 @@ for i_episode in itertools.count(1):
     state = env.reset()
 
     while not done:
-        if args.start_steps > total_numsteps:
-            action = env.action_space.sample()  # Sample random action
+        if args.her:
+            if np.random.uniform() < args.exploration_rate:
+                action = env.action_space.sample()  # Sample random action
+            else:
+                state_ = np.concatenate((state["observation"], state["desired_goal"]), axis=-1)
+                action = agent.select_action(state_)  # Sample action from policy
         else:
-            action = agent.select_action(state)  # Sample action from policy
+            state_ = state
+            action = agent.select_action(state_)  # Sample action from policy
 
-        if args.model_based and args.start_steps < total_numsteps and total_numsteps % 250 == 0:
+        if args.model_based and total_numsteps % 250 == 0:
             # Get all samples from environment
             o, a, r, o_2, _ = memory.sample(batch_size=len(memory))
             inputs = np.concatenate((o, a, o_2), axis=-1)
@@ -157,34 +215,37 @@ for i_episode in itertools.count(1):
 
         if args.her:
             # Append to episode trajectory
-            episode_trajectory.append(Experience(state, action, reward, next_state, done, episode_reward))
-            reward = float(episode_reward > goal)
+            o = state["observation"]
+            ag = state["achieved_goal"]
+            g = state["desired_goal"]
 
-        memory.push(state, action, reward, next_state, mask)  # Append transition to memory
+            o_2 = next_state["observation"]
+            ag_2 = next_state["achieved_goal"]
+
+            episode_trajectory.append(Experience(o, ag, g, action, reward, o_2, ag_2, g, done))
+
+            next_state_ = np.concatenate((next_state["observation"], next_state["desired_goal"]), axis=-1)
+        else:
+            next_state_ = next_state
+        memory.push(state_, action, reward, next_state_, mask)  # Append transition to memory
 
         state = next_state
 
     if args.her:
-        # Adjust goal
-        if i_episode == 1:
-            goal = episode_reward
-        else:
-            gaol = episode_reward if episode_reward > goal else goal
-
         # Fill up replay memory
         steps_taken = len(episode_trajectory)
         for t in range(steps_taken):
             # Standard experience replay
-            o, a, _, o_2, d, r_s = episode_trajectory[t]
+            o, ag, g, a, _, o_2, ag_2, _, d = episode_trajectory[t]
 
             for _ in range(future_k):
                 future = random.randint(t, steps_taken - 1)  # Index of future time step
-                new_goal = episode_trajectory[future].reward_sum  # Take future reward_sum and set as goal
-                new_reward = float(r_s > new_goal)
-                memory.push(o, a, new_reward, o_2, float(not d))
+                new_goal = episode_trajectory[future].next_state_ag  # Take future reward_sum and set as goal
+                new_reward = env.compute_reward(new_goal, g, None)
 
-    if total_numsteps > args.num_steps:
-        break
+                state_ = np.concatenate((o, g), axis=-1)
+                next_state_ = np.concatenate((o_2, g), axis=-1)
+                memory.push(state_, a, new_reward, next_state_, float(not d))
 
     writer.add_scalar('reward/train', episode_reward, total_numsteps)
     print("Episode: {}, total numsteps: {}, episode steps: {}, reward: {}".format(i_episode, total_numsteps,
@@ -199,7 +260,11 @@ for i_episode in itertools.count(1):
             episode_reward = 0
             done = False
             while not done:
-                action = agent.select_action(state, evaluate=True)
+                if args.her:
+                    state_ = np.concatenate((state["observation"], state["desired_goal"]), axis=-1)
+                else:
+                    state_ = state
+                action = agent.select_action(state_, evaluate=True)
 
                 next_state, reward, done, _ = env.step(action)
                 episode_reward += reward
@@ -213,5 +278,8 @@ for i_episode in itertools.count(1):
         print("----------------------------------------")
         print("Test Episodes: {}, Avg. Reward: {}".format(episodes, round(avg_reward, 2)))
         print("----------------------------------------")
+
+    if total_numsteps > args.num_steps:
+        break
 
 env.close()
